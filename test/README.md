@@ -23,7 +23,7 @@ mlip-platform/
 
 ## 🧪 Test Cases
 
-### ✅ SevenNet
+### ✅ SevenNet python 3.13
 
 Test file: `test/test_mlip_single_point_sevenn.py`
 
@@ -34,7 +34,7 @@ energy = atoms.get_potential_energy()
 assert isinstance(energy, float)
 ```
 
-### ✅ MACE
+### ✅ MACE python 3.11
 
 Test file: `test/test_mlip_single_point_mace.py`
 
