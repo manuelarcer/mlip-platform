@@ -5,7 +5,6 @@ from ase.io import read
 
 mlip_name = sys.argv[2]
 structure = sys.argv[1]
-
 if mlip_name == "mace":
     from mace.calculators import mace_mp
     calc = mace_mp(model="medium", device="cpu")
