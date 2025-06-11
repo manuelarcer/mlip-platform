@@ -4,7 +4,7 @@ import argparse
 
 # Hard-coded interpreters for MACE and Sevenn (replace with your actual paths)
 PY_MACE = "/Users/leeyuanzhang/Documents/mace-env/bin/python"
-PY_SEVENN = "/User/leeyuanzhang/Documents/sevenn/bin/python"
+PY_SEVENN = "/Users/leeyuanzhang/Documents/sevenn/bin/python"
 
 def main():
     parser = argparse.ArgumentParser(description="Run MLIP benchmarks on a structure file.")
