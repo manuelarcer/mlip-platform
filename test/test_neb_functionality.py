@@ -1,5 +1,6 @@
 from ase.io import read
-from src.neb import CustomNEB
+from milp_platform.neb import CustomNEB
+
 
 def test_neb_run():
     # Absolute paths to your POSCAR files
