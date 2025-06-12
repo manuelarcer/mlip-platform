@@ -1,5 +1,5 @@
 from ase.io import read
-from milp_platform.neb import CustomNEB
+from mlip_platform.neb import CustomNEB
 
 
 def test_neb_run():
