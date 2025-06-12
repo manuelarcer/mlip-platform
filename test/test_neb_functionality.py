@@ -1,6 +1,6 @@
 from ase.io import read
+from ase.mep.neb import idpp_interpolate  # optional fallback
 from mlip_platform.neb import CustomNEB
-
 
 def test_neb_run():
     # Absolute paths to your POSCAR files
@@ -25,9 +25,10 @@ def test_neb_run():
     # Check number of images (should be 5)
     assert len(neb.images) == 5
 
-    # Run interpolation (no optimizer yet)
+    # Run IDPP interpolation
     neb.interpolate_idpp()
 
     # Sanity check: positions are valid and same shape
     for img in neb.images[1:-1]:
-        assert img.get_positio_
+        assert img.get_positions().shape == initial.get_positions().shape
+        assert not any(p is None for p in img.get_positions().flatten())
