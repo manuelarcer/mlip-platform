@@ -1,14 +1,12 @@
 from ase.io import read, write
 from ase.mep import NEB
-from ase.mep.neb import idpp_interpolate  
-from ase.optimize import BFGS, MDMin, FIRE
-from sevenn.calculator import SevenNetCalculator
+from ase.mep.neb import idpp_interpolate
+from ase.optimize import FIRE
 import pandas as pd
 
 class CustomNEB():
     def __init__(self, initial, final, num_images=9, interp_fmax=0.1, interp_steps=1000, fmax=0.05, mlip='sevenn-mf-ompa'):
         self.initial = initial
-        # Resize final to match initial
         final.set_cell(initial.get_cell(), scale_atoms=True)
         self.final = final
         self.num_images = num_images
@@ -18,21 +16,22 @@ class CustomNEB():
         self.mlip = mlip
         self.images = self.setup_neb()
 
-    def setup_calculator(self, model='sevenn-mf-ompa'):
+    def setup_calculator(self, model):
         if model == 'sevenn-mf-ompa':
-            calc = SevenNetCalculator('7net-mf-ompa', modal='mpa')
-            return calc
+            from sevenn.calculator import SevenNetCalculator
+            return SevenNetCalculator('7net-mf-ompa', modal='mpa')
+        elif model == 'mace-medium':
+            from mace.calculators import mace_mp
+            return mace_mp(model='medium', device='cpu')
         else:
-            raise ValueError(f"Unknown MLIP model: {model}")
+            raise ValueError(f"Unsupported MLIP model: {model}")
 
     def setup_neb(self):
-        # Generate images
         images = [self.initial]
         for _ in range(self.num_images - 2):
             images.append(self.initial.copy())
         images.append(self.final)
 
-        # Assign calculator to each image
         calc = self.setup_calculator(self.mlip)
         for image in images:
             image.calc = calc
@@ -40,7 +39,7 @@ class CustomNEB():
         self.neb = NEB(images)
         return images
 
-    def interpolate_idpp(self):  
+    def interpolate_idpp(self):
         """Interpolate NEB images using IDPP (Improved Dimer Projection Path)."""
         idpp_interpolate(self.images)
 
