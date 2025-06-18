@@ -34,4 +34,5 @@ def test_neb_run_sevenn():
 
     # Force calculator execution to confirm SevenNet is active
     for img in neb.images:
-        energy = im
+        energy = img.get_potential_energy()
+        assert isinstance(energy, float)
