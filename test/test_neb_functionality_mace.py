@@ -1,5 +1,4 @@
 from ase.io import read
-from ase.mep.neb import idpp_interpolate  
 from mlip_platform.neb import CustomNEB
 
 def test_neb_run_mace():
@@ -19,7 +18,7 @@ def test_neb_run_mace():
         interp_fmax=0.1,
         interp_steps=100,
         fmax=0.05,
-        mlip="mace-medium"   
+        mlip="mace" 
     )
 
     # Check number of images
@@ -32,3 +31,8 @@ def test_neb_run_mace():
     for img in neb.images[1:-1]:
         assert img.get_positions().shape == initial.get_positions().shape
         assert not any(p is None for p in img.get_positions().flatten())
+
+    # Force calculator execution to confirm MACE is active
+    for img in neb.images:
+        energy = img.get_potential_energy()
+        assert isinstance(energy, float)
