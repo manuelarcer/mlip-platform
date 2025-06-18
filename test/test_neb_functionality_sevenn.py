@@ -1,8 +1,7 @@
 from ase.io import read
-from ase.mep.neb import idpp_interpolate  # optional fallback
 from mlip_platform.neb import CustomNEB
 
-def test_neb_run():
+def test_neb_run_sevenn():
     # Absolute paths to your POSCAR files
     initial_path = "/Users/leeyuanzhang/Documents/mlip-platform-(NEB)/test/POSCAR_initial"
     final_path = "/Users/leeyuanzhang/Documents/mlip-platform-(NEB)/test/POSCAR_final"
@@ -11,7 +10,7 @@ def test_neb_run():
     initial = read(initial_path, format="vasp")
     final = read(final_path, format="vasp")
 
-    # Set up NEB calculation with 5 images
+    # Set up NEB calculation with 5 images using SevenNet
     neb = CustomNEB(
         initial=initial,
         final=final,
@@ -22,7 +21,7 @@ def test_neb_run():
         mlip="sevenn-mf-ompa"
     )
 
-    # Check number of images (should be 5)
+    # Check number of images
     assert len(neb.images) == 5
 
     # Run IDPP interpolation
@@ -32,3 +31,7 @@ def test_neb_run():
     for img in neb.images[1:-1]:
         assert img.get_positions().shape == initial.get_positions().shape
         assert not any(p is None for p in img.get_positions().flatten())
+
+    # Force calculator execution to confirm SevenNet is active
+    for img in neb.images:
+        energy = im
