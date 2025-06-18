@@ -7,7 +7,7 @@ import pandas as pd
 class CustomNEB():
     def __init__(self, initial, final, num_images=9, interp_fmax=0.1, interp_steps=1000, fmax=0.05, mlip='sevenn-mf-ompa'):
         self.initial = initial
-        # Resize final to match initial cell
+        # initial and final may have different cell sizes. Resize final state to initial, scale atoms accordingly
         final.set_cell(initial.get_cell(), scale_atoms=True)
         self.final = final
         self.num_images = num_images
@@ -15,22 +15,27 @@ class CustomNEB():
         self.interp_steps = interp_steps
         self.fmax = fmax
         self.mlip = mlip
-        self.images = self.setup_neb()
+        self.images = self.setup_neb()   
 
-    def setup_calculator(self, model):
-        if model == 'sevenn-mf-ompa':
+    def setup_calculator(self, model='7net-mf-ompa'):
+        if model == '7net-mf-ompa':
+            from sevenn.calculator import SevenNetCalculator
+            return SevenNetCalculator(model, modal='mpa')
+        elif model == 'mace':
+            from mace.calculators import mace_mp
+            return mace_mp(model="medium", device="cpu")
+        else:
+            print(f"Unknown model: {model}. Using default SevenNet.")
             from sevenn.calculator import SevenNetCalculator
             return SevenNetCalculator('7net-mf-ompa', modal='mpa')
-        elif model == 'mace-medium':
-            from mace.calculators import mace_mp
-            return mace_mp(model='medium', device='cpu')
-        else:
-            raise ValueError(f"Unsupported MLIP model: {model}")
 
     def setup_neb(self):
         images = [self.initial] + [self.initial.copy() for _ in range(self.num_images - 2)] + [self.final]
-        idpp_interpolate(images, traj='idpp.traj', log='idpp.log', fmax=self.interp_fmax, mic=True, steps=self.interp_steps)
         return images
+
+    def interpolate_idpp(self):
+        """Run IDPP interpolation on the NEB path."""
+        idpp_interpolate(self.images, traj='idpp.traj', log='idpp.log', fmax=self.interp_fmax, mic=True, steps=self.interp_steps)
 
     def run_neb(self, optimizer=MDMin, trajectory='A2B.traj', climb=False):
         neb = NEB(self.images, climb=climb)
