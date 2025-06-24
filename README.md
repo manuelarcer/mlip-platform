@@ -15,14 +15,22 @@ This tool benchmarks different ML interatomic potentials (MLIPs) — like **MACE
 
 ## 📁 Folder Structure
 
-```
+```text
 mlip-platform-1/
-├── mlip_bench.py         # Main CLI tool
-├── bench_driver.py       # Worker script that runs inside each MLIP env
+├── mlip_bench.py           # Main CLI tool (legacy)
+├── bench_driver.py         # Worker script for single-point energy timing
+├── src/
+│   └── mlip_platform/
+│       ├── __init__.py
+│       ├── cli.py          # New CLI entry point
+│       ├── optim.py        # Geometry optimization runner
+│       ├── neb.py          # NEB runner
+│       └── md.py           # Molecular dynamics runner
 ├── test/
-│   └── POSCAR            # Example VASP-format structure
-│   └── test_cli.py       # Minimal test to check CLI functionality
-```
+│   ├── POSCAR              # Example VASP-format structure
+│   ├── test_cli.py         # Legacy MLIP bench CLI smoke test
+│   └── test_cli_experimental.py # New CLI subcommands smoke test
+``` 
 
 ---
 
@@ -56,6 +64,21 @@ Run the benchmark on any VASP-format structure file:
 
 ```bash
 python mlip_bench.py test/POSCAR
+```
+
+---
+
+## 💻 CLI Interface (experimental)
+
+A new `mlip` command provides subcommands for optimization, NEB, and MD:
+
+```bash
+mlip --help
+mlip optimize POSCAR --model sevenn-mf-ompa --fmax 0.05
+mlip neb initial.vasp final.vasp --model mace --images 9 \
+    --fmax 0.05 --interp-fmax 0.1 --interp-steps 1000 --climb
+mlip md POSCAR --model sevenn-mf-ompa --temperature 300 \
+    --timestep 1 --steps 1000
 ```
 
 Example output:
