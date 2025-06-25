@@ -2,8 +2,8 @@ from ase.io import read
 from mlip_platform.neb import CustomNEB
 
 def test_neb_run_sevenn():
-    initial_path = "/Users/leeyuanzhang/Documents/mlip-platform-(NEB)/test/CONTCAR_initial.vasp"
-    final_path = "/Users/leeyuanzhang/Documents/mlip-platform-(NEB)/test/CONTCAR_final.vasp"
+    initial_path = "test/fragment_initial.vasp"
+    final_path = "test/fragment_final.vasp"
 
     initial = read(initial_path, format="vasp")
     final = read(final_path, format="vasp")
