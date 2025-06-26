@@ -10,7 +10,7 @@ from sevenn.calculator import SevenNetCalculator
 
 def test_seven_md(tmp_path):
     # Path to your input structure
-    structure_path = "test/fragment_initial.vasp"
+    structure_path = "tests/fixtures/structures/fragment_initial.vasp"
 
     log_file = tmp_path / "seven_md.log"
 

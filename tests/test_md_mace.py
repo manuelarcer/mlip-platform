@@ -10,7 +10,7 @@ from mace.calculators import mace_mp
 
 def test_mace_md(tmp_path):
     # Path to your structure 
-    structure_path = "test/fragment_initial.vasp"  
+    structure_path = "tests/fixtures/structures/fragment_initial.vasp"  
 
     log_file = tmp_path / "mace_md.log"
 
