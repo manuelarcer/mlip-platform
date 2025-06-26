@@ -28,7 +28,7 @@ def test_single_point(method):
 
 @pytest.mark.parametrize("method", MLIP_METHODS)
 def test_neb(method):
-    neb_structures = f"{LI_INITIAL},{LI_FINAL}"
+    neb_structures = f"{FRAGMENT_INITIAL},{FRAGMENT_FINAL}"
     result = run(
         structure=str(neb_structures),
         model_name=None,
