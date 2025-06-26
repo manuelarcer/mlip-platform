@@ -1,9 +1,10 @@
 import pytest
 from pathlib import Path
-from mlip_platform.core.benchmark import run
+from mlip_platform.core.mlip_bench import run
+
 
 # Define the full path to your test structure files
-STRUCTURES = Path("tests/fixtures/structures")
+STRUCTURES = Path("tests/fixtures/structures"
 POSCAR = STRUCTURES / "POSCAR"
 FRAGMENT_INITIAL = STRUCTURES / "fragment_initial.vasp"
 FRAGMENT_FINAL = STRUCTURES / "fragment_final.vasp"
