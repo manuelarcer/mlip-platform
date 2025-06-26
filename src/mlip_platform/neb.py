@@ -2,9 +2,6 @@ from ase.io import read, write
 from ase.mep import NEB
 from ase.mep.neb import idpp_interpolate
 from ase.optimize import BFGS, MDMin, FIRE
-from sevenn.calculator import SevenNetCalculator
-#from chgnet.model import CHGNetCalculator
-#from chgnet.model import CHGNet
 import pandas as pd
 
 class CustomNEB():
@@ -20,30 +17,34 @@ class CustomNEB():
         self.mlip = mlip
         self.images = self.setup_neb()   
 
-    def setup_calculator(self, model='sevenn-mf-ompa'):
-        if model == 'sevenn-mf-ompa':
-            calc = SevenNetCalculator('7net-mf-ompa', modal='mpa')
-        elif model == 'chgnet':
-            calc = CHGNetCalculator()
+    def setup_calculator(self, model='7net-mf-ompa'):
+        if model == '7net-mf-ompa':
+            from sevenn.calculator import SevenNetCalculator
+            return SevenNetCalculator(model, modal='mpa')
+        elif model == 'mace':
+            from mace.calculators import mace_mp
+            return mace_mp(model="medium", device="cpu")
         else:
-            print(f"Unknown model: {model}. Using default.")
-            calc = SevenNetCalculator('7net-mf-ompa', modal='mpa')
-        return calc
+            print(f"Unknown model: {model}. Using default SevenNet.")
+            from sevenn.calculator import SevenNetCalculator
+            return SevenNetCalculator('7net-mf-ompa', modal='mpa')
 
     def setup_neb(self):
         images = [self.initial] + [self.initial.copy() for _ in range(self.num_images - 2)] + [self.final]
-        idpp_interpolate(images, traj='idpp.traj', log='idpp.log', fmax=self.interp_fmax, mic=True, steps=self.interp_steps)
         return images
-    
+
+    def interpolate_idpp(self):
+        """Run IDPP interpolation on the NEB path."""
+        idpp_interpolate(self.images, traj='idpp.traj', log='idpp.log', fmax=self.interp_fmax, mic=True, steps=self.interp_steps)
+
     def run_neb(self, optimizer=MDMin, trajectory='A2B.traj', climb=False):
-        # Set up NEB
         neb = NEB(self.images, climb=climb)
         for image in self.images:
             image.calc = self.setup_calculator(self.mlip)
         optimizer = optimizer(neb, trajectory=trajectory)
         optimizer.run(fmax=self.fmax)
         return self.images
-    
+
     def process_results(self):
         results = {'i': [], 'e': []}
         for i, image in enumerate(self.images):
