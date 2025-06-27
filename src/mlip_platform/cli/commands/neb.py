@@ -5,7 +5,7 @@ from mlip_platform.core.neb import CustomNEB
 
 app = typer.Typer()
 
-@app.command()
+@app.command("run")
 def run(
     initial: Path = typer.Option(..., help="Initial structure (.vasp)"),
     final: Path = typer.Option(..., help="Final structure (.vasp)"),
