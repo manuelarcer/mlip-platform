@@ -1,7 +1,7 @@
-import argparse
 import subprocess
 import json
 import re
+from pathlib import Path
 
 def run_driver(python_exec, structure, mlip_name):
     print(f"\n[INFO] Running {mlip_name} with {python_exec}")
@@ -19,7 +19,6 @@ def run_driver(python_exec, structure, mlip_name):
         return None
 
     try:
-        # Use regex to extract the first JSON object from stdout
         match = re.search(r'\{.*?\}', result.stdout, re.DOTALL)
         if match:
             return json.loads(match.group(0))
@@ -50,16 +49,21 @@ def main():
     mace_result = run_driver(mace_python, structure_path, "mace")
     sevenn_result = run_driver(sevenn_python, structure_path, "sevenn")
 
-    print("\n=== Results ===")
+    results = {}
     if mace_result:
-        print(f"MACE   : {mace_result['energy']:.6f} eV  | {mace_result['time']:.2f} s")
+        results["mace"] = {
+            "energy": mace_result["energy"],
+            "time": mace_result["time"],
+        }
     else:
-        print("MACE   : Failed")
+        results["mace"] = "Failed"
 
     if sevenn_result:
-        print(f"Sevenn : {sevenn_result['energy']:.6f} eV  | {sevenn_result['time']:.2f} s")
+        results["sevenn"] = {
+            "energy": sevenn_result["energy"],
+            "time": sevenn_result["time"],
+        }
     else:
-        print("Sevenn : Failed")
+        results["sevenn"] = "Failed"
 
-if __name__ == "__main__":
-    main()
+    return results

@@ -1,9 +1,18 @@
+import pytest
 from ase.io import read
-from mlip_platform.neb import CustomNEB
 
+try:
+    from mace.calculators import mace_mp
+    mace_available = True
+except ImportError:
+    mace_available = False
+
+from mlip_platform.core.neb import CustomNEB
+
+@pytest.mark.skipif(not mace_available, reason="MACE not installed")
 def test_neb_run_mace():
-    initial_path = "test/fragment_initial.vasp"
-    final_path = "test/fragment_final.vasp"
+    initial_path = "tests/fixtures/structures/fragment_initial.vasp"
+    final_path = "tests/fixtures/structures/fragment_final.vasp"
 
     initial = read(initial_path, format="vasp")
     final = read(final_path, format="vasp")
@@ -20,17 +29,14 @@ def test_neb_run_mace():
 
     assert len(neb.images) == 5
 
-    # Interpolate images with IDPP
     neb.interpolate_idpp()
 
     for img in neb.images[1:-1]:
         assert img.get_positions().shape == initial.get_positions().shape
         assert not any(p is None for p in img.get_positions().flatten())
 
-    # Run NEB to assign calculator and relax path
     neb.run_neb()
 
-    # Validate energy extraction
     for img in neb.images:
         energy = img.get_potential_energy()
         assert isinstance(energy, float)
