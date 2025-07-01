@@ -3,10 +3,6 @@ import subprocess
 import json
 import re
 
-# === Update these paths to match your virtual environments ===
-PY_MACE = "/Users/leeyuanzhang/Documents/mace-env/bin/python"
-PY_SEVENN = "/Users/leeyuanzhang/Documents/sevenn-env/bin/python"
-
 def run_driver(python_exec, structure, mlip_name):
     print(f"\n[INFO] Running {mlip_name} with {python_exec}")
     result = subprocess.run(
@@ -37,15 +33,22 @@ def run_driver(python_exec, structure, mlip_name):
 def main():
     parser = argparse.ArgumentParser(description="Run MLIP benchmarks on a structure file.")
     parser.add_argument("structure", help="Path to the structure file (e.g., POSCAR, CONTCAR, or *.vasp)")
+    parser.add_argument("--mace-py", default="python", 
+                        help="Path to Python interpreter for MACE (default: 'python')")
+    parser.add_argument("--sevenn-py", default="python", 
+                        help="Path to Python interpreter for SevenNet (default: 'python')")
     args = parser.parse_args()
 
     structure_path = args.structure
+    mace_python = args.mace_py
+    sevenn_python = args.sevenn_py
+    
     print(f"\nStructure file to process: {structure_path}")
-    print(f"Using MACE interpreter: {PY_MACE}")
-    print(f"Using Sevenn interpreter: {PY_SEVENN}")
+    print(f"Using MACE interpreter: {mace_python}")
+    print(f"Using Sevenn interpreter: {sevenn_python}")
 
-    mace_result = run_driver(PY_MACE, structure_path, "mace")
-    sevenn_result = run_driver(PY_SEVENN, structure_path, "sevenn")
+    mace_result = run_driver(mace_python, structure_path, "mace")
+    sevenn_result = run_driver(sevenn_python, structure_path, "sevenn")
 
     print("\n=== Results ===")
     if mace_result:
