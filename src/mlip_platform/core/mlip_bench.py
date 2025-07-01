@@ -1,6 +1,7 @@
 import subprocess
 import json
 import re
+import argparse
 from pathlib import Path
 
 def run_driver(python_exec, structure, mlip_name):
@@ -41,6 +42,45 @@ def main():
     structure_path = args.structure
     mace_python = args.mace_py
     sevenn_python = args.sevenn_py
+    
+    print(f"\nStructure file to process: {structure_path}")
+    print(f"Using MACE interpreter: {mace_python}")
+    print(f"Using Sevenn interpreter: {sevenn_python}")
+
+    mace_result = run_driver(mace_python, structure_path, "mace")
+    sevenn_result = run_driver(sevenn_python, structure_path, "sevenn")
+
+    results = {}
+    if mace_result:
+        results["mace"] = {
+            "energy": mace_result["energy"],
+            "time": mace_result["time"],
+        }
+    else:
+        results["mace"] = "Failed"
+
+    if sevenn_result:
+        results["sevenn"] = {
+            "energy": sevenn_result["energy"],
+            "time": sevenn_result["time"],
+        }
+    else:
+        results["sevenn"] = "Failed"
+
+    return results
+
+def run_benchmark(structure_path, mace_python="python", sevenn_python="python"):
+    """Run benchmark on a structure file and return results.
+    
+    Args:
+        structure_path: Path to structure file (POSCAR, CONTCAR, or *.vasp)
+        mace_python: Path to Python interpreter for MACE (default: 'python')
+        sevenn_python: Path to Python interpreter for SevenNet (default: 'python')
+    
+    Returns:
+        dict: Benchmark results for MACE and SevenNet
+    """
+    structure_path = str(structure_path)
     
     print(f"\nStructure file to process: {structure_path}")
     print(f"Using MACE interpreter: {mace_python}")
