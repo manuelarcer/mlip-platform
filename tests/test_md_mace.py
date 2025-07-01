@@ -1,10 +1,8 @@
 import os
 import pytest
 from ase.io import read
-from ase.md.verlet import VelocityVerlet
-from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
-from ase.md import MDLogger
-from ase import units
+from mlip_platform.core.md import run_md
+
 
 # Try importing MACE
 try:
@@ -21,11 +19,7 @@ def test_mace_md(tmp_path):
     atoms = read(structure_path)
     atoms.calc = mace_mp(model="medium", device="cpu")
 
-    MaxwellBoltzmannDistribution(atoms, temperature_K=300)
-
-    dyn = VelocityVerlet(atoms, timestep=2.0 * units.fs)
-    dyn.attach(MDLogger(dyn, atoms, str(log_file), header=True, stress=False), interval=5)
-    dyn.run(10)
+    run_md(atoms, str(log_file), temperature_K=300, steps=10)
 
     assert os.path.exists(log_file)
     with open(log_file) as f:
