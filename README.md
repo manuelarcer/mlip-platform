@@ -73,6 +73,16 @@ Run the benchmark on any VASP-format structure file:
 python mlip_bench.py test/POSCAR
 ```
 
+You can specify custom Python interpreters for each MLIP:
+
+```bash
+python mlip_bench.py test/POSCAR --mace-py /path/to/mace-env/bin/python --sevenn-py /path/to/sevenn-env/bin/python
+```
+
+#### CLI Options:
+- `--mace-py`: Path to Python interpreter for MACE (default: 'python')
+- `--sevenn-py`: Path to Python interpreter for SevenNet (default: 'python')
+
 Example output:
 ```
 === Results ===
