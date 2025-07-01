@@ -1,3 +1,6 @@
 *.pyc
 __pycache__/
 *.DS_Store
+A2b.traj
+idpp.log
+*_md.log
