@@ -1,3 +1,16 @@
+"""
+Run NEB (nudged elastic band) interpolation and relaxation using MLIP models.
+
+Examples:
+  Run NEB with MACE:
+    mlip-platform neb run --initial a.vasp --final b.vasp --mlip mace
+
+  Run NEB with SevenNet:
+    mlip-platform neb run --initial a.vasp --final b.vasp --mlip 7net-mf-ompa
+
+This command performs both IDPP interpolation and full NEB relaxation.
+"""
+
 import typer
 from pathlib import Path
 from ase.io import read
@@ -7,14 +20,15 @@ app = typer.Typer()
 
 @app.command("run")
 def run(
-    initial: Path = typer.Option(..., help="Initial structure (.vasp)"),
-    final: Path = typer.Option(..., help="Final structure (.vasp)"),
+    initial: Path = typer.Option(..., help="Initial structure file (.vasp)"),
+    final: Path = typer.Option(..., help="Final structure file (.vasp)"),
     mlip: str = typer.Option("mace", help="MLIP model to use: 'mace' or '7net-mf-ompa'")
 ):
-    """Run NEB interpolation and relaxation with specified MLIP."""
+    """Run NEB interpolation and relaxation with the specified MLIP model."""
     atoms_initial = read(initial, format="vasp")
     atoms_final = read(final, format="vasp")
 
+    typer.echo(f"Running NEB with {mlip}")
     neb = CustomNEB(
         initial=atoms_initial,
         final=atoms_final,
@@ -25,7 +39,6 @@ def run(
         mlip=mlip
     )
 
-    typer.echo(f"Running NEB with {mlip}")
     neb.interpolate_idpp()
     neb.run_neb()
     typer.echo("NEB complete.")

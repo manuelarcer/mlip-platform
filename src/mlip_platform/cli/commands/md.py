@@ -14,7 +14,16 @@ try:
 except ImportError:
     SevenNetCalculator = None
 
-app = typer.Typer(help="Run molecular dynamics simulations.")
+app = typer.Typer(help="""
+Run molecular dynamics simulations using MACE or SevenNet.
+
+Examples:
+  Run MD with MACE for 100 steps at 300K:
+    mlip-platform md run --structure structure.vasp --model mace --steps 100
+
+  Run MD with SevenNet:
+    mlip-platform md run --structure structure.vasp --model 7net-mf-ompa
+""")
 
 @app.command("run")
 def run(
