@@ -1,11 +1,26 @@
 import typer
-from pathlib import Path
-from mlip_platform.core.mlip_bench import run_benchmark 
+from ase.io import read
+from mlip_platform.core.mlip_bench import run_benchmark
 
-app = typer.Typer()
+app = typer.Typer(help="Run MLIP benchmark calculations")
+
+VALID_MODELS = {
+    "mace": "mace",
+    "sevennet": "sevenn-mf-ompa",
+}
 
 @app.command("run")
-def run(structure: Path):
-    """Run MLIP benchmark on a structure file. PYTHONPATH=src python -m mlip_platform.cli.main benchmark run tests/fixtures/structures/POSCAR"""
-    result = run_benchmark(structure)
-    typer.echo(result)
+def benchmark_command(
+    structure: str = typer.Option(..., prompt="Structure file path"),
+    model: str = typer.Option(..., prompt="Choose model [MACE/SevenNet]"),
+):
+    model_key = model.strip().lower()
+    if model_key not in VALID_MODELS:
+        typer.echo("Invalid model. Choose 'MACE' or 'SevenNet'.")
+        raise typer.Exit(1)
+
+    atoms = read(structure)
+    run_benchmark(
+        atoms=atoms,
+        model=VALID_MODELS[model_key]
+    )

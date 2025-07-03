@@ -1,31 +1,40 @@
 import typer
-from pathlib import Path
 from ase.io import read
 from mlip_platform.core.neb import CustomNEB
 
-app = typer.Typer()
+app = typer.Typer(help="Run NEB calculations")
+
+VALID_MODELS = {
+    "mace": "mace",
+    "sevennet": "sevenn-mf-ompa",
+}
 
 @app.command("run")
-def run(
-    initial: Path = typer.Option(..., help="Initial structure (.vasp)"),
-    final: Path = typer.Option(..., help="Final structure (.vasp)"),
-    mlip: str = typer.Option("mace", help="MLIP model to use: 'mace' or '7net-mf-ompa'")
+def neb_command(
+    initial: str = typer.Option(..., prompt="Initial structure path"),
+    final: str = typer.Option(..., prompt="Final structure path"),
+    model: str = typer.Option(..., prompt="Choose model [MACE/SevenNet]"),
+    images: int = typer.Option(9),
+    fmax: float = typer.Option(0.05),
+    interp_fmax: float = typer.Option(0.1),
+    interp_steps: int = typer.Option(1000),
+    climb: bool = typer.Option(False),
 ):
-    """Run NEB interpolation and relaxation with specified MLIP."""
-    atoms_initial = read(initial, format="vasp")
-    atoms_final = read(final, format="vasp")
+    model_key = model.strip().lower()
+    if model_key not in VALID_MODELS:
+        raise typer.Exit(code=1)
 
-    neb = CustomNEB(
-        initial=atoms_initial,
-        final=atoms_final,
-        num_images=5,
-        interp_fmax=0.1,
-        interp_steps=100,
-        fmax=0.05,
-        mlip=mlip
+    ini = read(initial)
+    fin = read(final)
+
+    runner = CustomNEB(
+        initial=ini,
+        final=fin,
+        num_images=images,
+        interp_fmax=interp_fmax,
+        interp_steps=interp_steps,
+        fmax=fmax,
+        mlip=VALID_MODELS[model_key],
     )
 
-    typer.echo(f"Running NEB with {mlip}")
-    neb.interpolate_idpp()
-    neb.run_neb()
-    typer.echo("NEB complete.")
+    runner.run_neb(climb=climb)

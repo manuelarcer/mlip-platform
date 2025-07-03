@@ -1,43 +1,32 @@
 import typer
-from pathlib import Path
 from ase.io import read
 from mlip_platform.core.md import run_md
 
-# Optional calculator imports
-try:
-    from mace.calculators import mace_mp
-except ImportError:
-    mace_mp = None
+app = typer.Typer(help="Run Molecular Dynamics simulations")
 
-try:
-    from sevenn.calculator import SevenNetCalculator
-except ImportError:
-    SevenNetCalculator = None
-
-app = typer.Typer(help="Run molecular dynamics simulations.")
+VALID_MODELS = {
+    "mace": "mace",
+    "sevennet": "sevenn-mf-ompa",
+}
 
 @app.command("run")
-def run(
-    structure: Path = typer.Option(..., help="Structure file (.vasp)"),
-    model: str = typer.Option("mace", help="MLIP model: 'mace' or '7net-mf-ompa'"),
-    steps: int = typer.Option(100, help="Number of MD steps"),
-    temperature: float = typer.Option(300.0, help="Temperature in K"),
-    log: str = typer.Option("md.log", help="Output log file")
+def md_command(
+    initial: str = typer.Option(..., prompt="Structure file path"),
+    model: str = typer.Option(..., prompt="Choose model [MACE/SevenNet]"),
+    temperature: float = typer.Option(300.0, prompt=True),
+    timestep: float = typer.Option(1.0, prompt=True),
+    steps: int = typer.Option(1000, prompt=True),
 ):
-    """Run MD simulation using specified MLIP model."""
-    atoms = read(structure)
+    model_key = model.strip().lower()
+    if model_key not in VALID_MODELS:
+        typer.echo("Invalid model. Choose 'MACE' or 'SevenNet'.")
+        raise typer.Exit(1)
 
-    if model.lower() == "mace":
-        if not mace_mp:
-            raise typer.Exit("MACE is not installed.")
-        atoms.calc = mace_mp(model="medium", device="cpu")
-    elif model.lower() in ["sevenn", "7net-mf-ompa"]:
-        if not SevenNetCalculator:
-            raise typer.Exit("SevenNet is not installed.")
-        atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
-    else:
-        raise typer.Exit(f"Unsupported model: {model}")
-
-    typer.echo(f"Running MD with {model} for {steps} steps at {temperature}K...")
-    run_md(atoms, log_path=log, temperature_K=temperature, steps=steps)
-    typer.echo(f"MD simulation complete. Log written to: {log}")
+    atoms = read(initial)
+    run_md(
+        atoms=atoms,
+        model=VALID_MODELS[model_key],
+        temperature=temperature,
+        timestep=timestep,
+        steps=steps,
+    )
