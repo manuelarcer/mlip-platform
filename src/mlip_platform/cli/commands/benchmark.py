@@ -1,26 +1,43 @@
 import typer
-from ase.io import read
-from mlip_platform.core.mlip_bench import run_benchmark
+from mlip_platform.core.mlip_bench import run_benchmark_all
 
-app = typer.Typer(help="Run MLIP benchmark calculations")
+app = typer.Typer(
+    name="benchmark",
+    invoke_without_command=True,
+    no_args_is_help=False,
+    help="Run single-point energy benchmarks using the available MLIPs."
+)
 
-VALID_MODELS = {
-    "mace": "mace",
-    "sevennet": "sevenn-mf-ompa",
-}
-
-@app.command("run")
-def benchmark_command(
-    structure: str = typer.Option(..., prompt="Structure file path"),
-    model: str = typer.Option(..., prompt="Choose model [MACE/SevenNet]"),
+@app.callback()
+def run(
+    structure: str = typer.Option(
+        ..., prompt="Enter the path to your structure file (e.g., POSCAR, .traj)"
+    ),
+    model: str = typer.Option(
+        "", prompt="Enter MLIP model name (leave blank to run all available)"
+    ),
 ):
-    model_key = model.strip().lower()
-    if model_key not in VALID_MODELS:
-        typer.echo("Invalid model. Choose 'MACE' or 'SevenNet'.")
-        raise typer.Exit(1)
+    """
+    Benchmark the structure against the selected or all available MLIP models.
+    """
+    model_name = model or None
+    results = run_benchmark_all(structure, model_name)
 
-    atoms = read(structure)
-    run_benchmark(
-        atoms=atoms,
-        model=VALID_MODELS[model_key]
-    )
+    for mlip_name, res in results.items():
+        if res is None:
+            typer.secho(
+                f"{mlip_name}: not available in this environment.",
+                fg=typer.colors.YELLOW
+            )
+        else:
+            energy = res["energy"]
+            time_s = res["time"]
+            typer.secho(
+                f"{mlip_name}: energy = {energy:.6f} eV, time = {time_s:.4f} s",
+                fg=typer.colors.GREEN
+            )
+
+    typer.secho("✅ Benchmarking complete!", fg=typer.colors.GREEN)
+
+if __name__ == "__main__":
+    app()

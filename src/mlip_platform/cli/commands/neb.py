@@ -2,39 +2,58 @@ import typer
 from ase.io import read
 from mlip_platform.core.neb import CustomNEB
 
-app = typer.Typer(help="Run NEB calculations")
+app = typer.Typer(
+    name="neb",
+    invoke_without_command=True,
+    no_args_is_help=False,
+    help="Run a NEB calculation using the available MLIP (auto-detected)."
+)
 
-VALID_MODELS = {
-    "mace": "mace",
-    "sevennet": "sevenn-mf-ompa",
-}
-
-@app.command("run")
-def neb_command(
-    initial: str = typer.Option(..., prompt="Initial structure path"),
-    final: str = typer.Option(..., prompt="Final structure path"),
-    model: str = typer.Option(..., prompt="Choose model [MACE/SevenNet]"),
-    images: int = typer.Option(9),
-    fmax: float = typer.Option(0.05),
-    interp_fmax: float = typer.Option(0.1),
-    interp_steps: int = typer.Option(1000),
-    climb: bool = typer.Option(False),
+@app.callback()
+def run(
+    initial_path: str = typer.Option(
+        ..., prompt="Enter the path to the initial structure file (e.g., initial.vasp)"
+    ),
+    final_path: str = typer.Option(
+        ..., prompt="Enter the path to the final structure file (e.g., final.vasp)"
+    ),
+    num_images: int = typer.Option(
+        9, prompt="Enter the number of images"
+    ),
+    interp_fmax: float = typer.Option(
+        0.1, prompt="Enter interpolation fmax"
+    ),
+    interp_steps: int = typer.Option(
+        1000, prompt="Enter interpolation steps"
+    ),
+    fmax: float = typer.Option(
+        0.05, prompt="Enter the NEB convergence fmax"
+    ),
+    optimizer: str = typer.Option(
+        "BFGS", prompt="Choose optimizer [BFGS/MDMin/FIRE]"
+    ),
+    model: str = typer.Option(
+        "", prompt="Enter MLIP model name (leave blank to use default)"
+    ),
 ):
-    model_key = model.strip().lower()
-    if model_key not in VALID_MODELS:
-        raise typer.Exit(code=1)
+    """
+    Run NEB interpolation and relaxation using the provided inputs.
+    """
+    initial = read(initial_path)
+    final = read(final_path)
+    mlip_model = model or None
 
-    ini = read(initial)
-    fin = read(final)
-
-    runner = CustomNEB(
-        initial=ini,
-        final=fin,
-        num_images=images,
+    job = CustomNEB(
+        initial=initial,
+        final=final,
+        num_images=num_images,
         interp_fmax=interp_fmax,
         interp_steps=interp_steps,
         fmax=fmax,
-        mlip=VALID_MODELS[model_key],
+        model=mlip_model,
     )
+    job.run(optimizer=optimizer)
+    typer.secho("✅ NEB calculation completed!", fg=typer.colors.GREEN)
 
-    runner.run_neb(climb=climb)
+if __name__ == "__main__":
+    app()

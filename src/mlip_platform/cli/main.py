@@ -1,12 +1,16 @@
 import typer
-from mlip_platform.cli.commands import md, neb, benchmark
+from mlip_platform.cli.commands import md as md_cmd
+from mlip_platform.cli.commands import neb as neb_cmd
+from mlip_platform.cli.commands import benchmark as bench_cmd
 
-app = typer.Typer(help="MLIP Platform CLI")
+app = typer.Typer(
+    help="MLIP Platform CLI: run MD, NEB, or Benchmark using MACE or SevenNet."
+)
 
-# Register subcommands
-app.add_typer(md.app, name="md", help="Run Molecular Dynamics simulations")
-app.add_typer(neb.app, name="neb", help="Run NEB interpolation and relaxation")
-app.add_typer(benchmark.app, name="benchmark", help="Run MLIP benchmark calculations")
+# Register top-level commands (flattened, no subcommand nesting)
+app.add_typer(md_cmd.app)
+app.add_typer(neb_cmd.app)
+app.add_typer(bench_cmd.app)
 
 if __name__ == "__main__":
     app()

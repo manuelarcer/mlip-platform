@@ -1,109 +1,56 @@
-import subprocess
+import sys
+import os
 import json
-import re
-import argparse
-from pathlib import Path
+import subprocess
+import importlib.util
 
-def run_driver(python_exec, structure, mlip_name):
-    print(f"\n[INFO] Running {mlip_name} with {python_exec}")
-    result = subprocess.run(
-        [python_exec, "bench_driver.py", structure, mlip_name],
-        capture_output=True,
-        text=True
-    )
-
-    print(f"\n--- {mlip_name.upper()} STDOUT ---\n{result.stdout}")
-    print(f"--- {mlip_name.upper()} STDERR ---\n{result.stderr}")
-
-    if result.returncode != 0:
-        print(f"[ERROR] {mlip_name} subprocess failed with exit code {result.returncode}")
-        return None
-
-    try:
-        match = re.search(r'\{.*?\}', result.stdout, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        else:
-            print(f"[ERROR] No JSON object found in {mlip_name}.stdout")
-            return None
-    except Exception as e:
-        print(f"[ERROR] Failed to decode JSON from {mlip_name}.stdout\nReason: {e}")
-        return None
-
-def main():
-    parser = argparse.ArgumentParser(description="Run MLIP benchmarks on a structure file.")
-    parser.add_argument("structure", help="Path to the structure file (e.g., POSCAR, CONTCAR, or *.vasp)")
-    parser.add_argument("--mace-py", default="python", 
-                        help="Path to Python interpreter for MACE (default: 'python')")
-    parser.add_argument("--sevenn-py", default="python", 
-                        help="Path to Python interpreter for SevenNet (default: 'python')")
-    args = parser.parse_args()
-
-    structure_path = args.structure
-    mace_python = args.mace_py
-    sevenn_python = args.sevenn_py
-    
-    print(f"\nStructure file to process: {structure_path}")
-    print(f"Using MACE interpreter: {mace_python}")
-    print(f"Using Sevenn interpreter: {sevenn_python}")
-
-    mace_result = run_driver(mace_python, structure_path, "mace")
-    sevenn_result = run_driver(sevenn_python, structure_path, "sevenn")
-
-    results = {}
-    if mace_result:
-        results["mace"] = {
-            "energy": mace_result["energy"],
-            "time": mace_result["time"],
-        }
-    else:
-        results["mace"] = "Failed"
-
-    if sevenn_result:
-        results["sevenn"] = {
-            "energy": sevenn_result["energy"],
-            "time": sevenn_result["time"],
-        }
-    else:
-        results["sevenn"] = "Failed"
-
-    return results
-
-def run_benchmark(structure_path, mace_python="python", sevenn_python="python"):
-    """Run benchmark on a structure file and return results.
-    
-    Args:
-        structure_path: Path to structure file (POSCAR, CONTCAR, or *.vasp)
-        mace_python: Path to Python interpreter for MACE (default: 'python')
-        sevenn_python: Path to Python interpreter for SevenNet (default: 'python')
-    
-    Returns:
-        dict: Benchmark results for MACE and SevenNet
+def _call_driver(structure_path: str, mlip_name: str) -> dict:
     """
-    structure_path = str(structure_path)
-    
-    print(f"\nStructure file to process: {structure_path}")
-    print(f"Using MACE interpreter: {mace_python}")
-    print(f"Using Sevenn interpreter: {sevenn_python}")
+    Run bench_driver.py as a subprocess and parse its JSON output.
+    """
+    # Locate bench_driver.py two levels up from this file
+    driver_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "bench_driver.py")
+    )
+    cmd = [sys.executable, driver_path, structure_path, mlip_name]
+    try:
+        out = subprocess.check_output(cmd, stderr=subprocess.PIPE, text=True)
+        return json.loads(out)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"bench_driver.py failed for MLIP '{mlip_name}':\n{e.stderr}"
+        ) from e
 
-    mace_result = run_driver(mace_python, structure_path, "mace")
-    sevenn_result = run_driver(sevenn_python, structure_path, "sevenn")
+def run_benchmark_all(structure_path: str, model: str = None) -> dict:
+    """
+    Benchmark single-point energy for both MACE and SevenNet via bench_driver.py.
 
+    Parameters
+    ----------
+    structure_path : str
+        Path to the input structure file.
+    model : str, optional
+        (Ignored by bench_driver; you can extend bench_driver to accept it.)
+
+    Returns
+    -------
+    dict
+        {
+          "mace":    {"mlip": "mace",    "energy": ..., "time": ...} or None,
+          "sevenn":  {"mlip": "sevenn",  "energy": ..., "time": ...} or None
+        }
+    """
     results = {}
-    if mace_result:
-        results["mace"] = {
-            "energy": mace_result["energy"],
-            "time": mace_result["time"],
-        }
-    else:
-        results["mace"] = "Failed"
 
-    if sevenn_result:
-        results["sevenn"] = {
-            "energy": sevenn_result["energy"],
-            "time": sevenn_result["time"],
-        }
-    else:
-        results["sevenn"] = "Failed"
+    # Define the MLIP names as accepted by bench_driver.py
+    for mlip in ("mace", "sevenn"):
+        # Skip if the MLIP package isn’t even installed
+        pkg_name = "mace" if mlip == "mace" else "sevenn"
+        if importlib.util.find_spec(pkg_name) is None:
+            results[mlip] = None
+            continue
+
+        # Call your driver
+        results[mlip] = _call_driver(structure_path, mlip)
 
     return results

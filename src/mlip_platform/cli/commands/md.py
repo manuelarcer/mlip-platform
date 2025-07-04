@@ -2,31 +2,47 @@ import typer
 from ase.io import read
 from mlip_platform.core.md import run_md
 
-app = typer.Typer(help="Run Molecular Dynamics simulations")
+app = typer.Typer(
+    name="md",
+    invoke_without_command=True,
+    no_args_is_help=False,
+    help="Run a molecular dynamics simulation using the available MLIP (auto-detected)."
+)
 
-VALID_MODELS = {
-    "mace": "mace",
-    "sevennet": "sevenn-mf-ompa",
-}
+@app.callback()
+def run(
+    structure: str = typer.Option(
+        ..., prompt="Enter the path to your structure file (e.g., POSCAR, .traj)"
+    ),
+    temperature: float = typer.Option(
+        300.0, prompt="Enter temperature in Kelvin"
+    ),
+    timestep: float = typer.Option(
+        2.0, prompt="Enter timestep in femtoseconds"
+    ),
+    steps: int = typer.Option(
+        1000, prompt="Enter number of MD steps"
+    ),
+    log: str = typer.Option(
+    "", prompt="Enter log file path (leave blank for no file logging)"
+)
 
-@app.command("run")
-def md_command(
-    initial: str = typer.Option(..., prompt="Structure file path"),
-    model: str = typer.Option(..., prompt="Choose model [MACE/SevenNet]"),
-    temperature: float = typer.Option(300.0, prompt=True),
-    timestep: float = typer.Option(1.0, prompt=True),
-    steps: int = typer.Option(1000, prompt=True),
 ):
-    model_key = model.strip().lower()
-    if model_key not in VALID_MODELS:
-        typer.echo("Invalid model. Choose 'MACE' or 'SevenNet'.")
-        raise typer.Exit(1)
+    """
+    Executes MD simulation with given parameters.
+    MLIP model is automatically selected based on environment (MACE or SevenNet).
+    """
+    atoms = read(structure)
 
-    atoms = read(initial)
     run_md(
-        atoms=atoms,
-        model=VALID_MODELS[model_key],
-        temperature=temperature,
-        timestep=timestep,
-        steps=steps,
+        atoms,
+        log_path=log,
+        temperature_K=temperature,
+        timestep_fs=timestep,
+        steps=steps
     )
+
+    typer.secho("✅ MD simulation completed!", fg=typer.colors.GREEN)
+
+if __name__ == "__main__":
+    app()
