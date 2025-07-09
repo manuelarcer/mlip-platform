@@ -1,4 +1,0 @@
-[console_scripts]
-benchmark = mlip_platform.benchmark_cli:app
-md = mlip_platform.md_cli:app
-neb = mlip_platform.neb_cli:app
