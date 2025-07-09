@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: mlip-platform
+Version: 0.1.0
+Summary: CLI platform for running MLIP-based MD, NEB, and Benchmarking
+Author: Your Name
+Author-email: your.email@example.com
+Requires-Dist: typer[all]
+Requires-Dist: ase
+Dynamic: author
+Dynamic: author-email
+Dynamic: requires-dist
+Dynamic: summary

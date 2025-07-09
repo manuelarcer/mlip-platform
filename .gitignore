@@ -1,6 +1,30 @@
-*.pyc
+# Python cache
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# macOS system file
 *.DS_Store
-A2b.traj
-idpp.log
+
+# Log and trajectory files
+*.log
 *_md.log
+
+
+# Packaging and build artifacts
+*.egg-info/
+build/
+dist/
+
+# Pytest & coverage
+.pytest_cache/
+.coverage
+.cache/
+
+# VS Code or other IDE settings
+.vscode/
+
+# CLI or temp command data
+command_cache.*
+command_history.*

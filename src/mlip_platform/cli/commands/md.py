@@ -16,28 +16,32 @@ except ImportError:
 
 app = typer.Typer(help="Run molecular dynamics simulations.")
 
-@app.command("run")
-def run(
-    structure: Path = typer.Option(..., help="Structure file (.vasp)"),
-    model: str = typer.Option("mace", help="MLIP model: 'mace' or '7net-mf-ompa'"),
-    steps: int = typer.Option(100, help="Number of MD steps"),
-    temperature: float = typer.Option(300.0, help="Temperature in K"),
-    log: str = typer.Option("md.log", help="Output log file")
-):
-    """Run MD simulation using specified MLIP model."""
-    atoms = read(structure)
-
-    if model.lower() == "mace":
-        if not mace_mp:
-            raise typer.Exit("MACE is not installed.")
-        atoms.calc = mace_mp(model="medium", device="cpu")
-    elif model.lower() in ["sevenn", "7net-mf-ompa"]:
-        if not SevenNetCalculator:
-            raise typer.Exit("SevenNet is not installed.")
-        atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
+def detect_model():
+    if mace_mp:
+        return "mace"
+    elif SevenNetCalculator:
+        return "7net-mf-ompa"
     else:
-        raise typer.Exit(f"Unsupported model: {model}")
+        raise typer.Exit("No supported MLIP model found in the environment (MACE or SevenNet).")
 
-    typer.echo(f"Running MD with {model} for {steps} steps at {temperature}K...")
+@app.command()
+def run(
+    structure: Path = typer.Option(..., prompt=True, help="Structure file (.vasp)"),
+    steps: int = typer.Option(100, prompt=True, help="Number of MD steps"),
+    temperature: float = typer.Option(300.0, prompt=True, help="Temperature in K"),
+    log: str = typer.Option("md.log", prompt=True, help="Output log file")
+):
+    """Run MD simulation using available MLIP model."""
+    atoms = read(structure)
+    model = detect_model()
+
+    if model == "mace":
+        typer.echo("Using MACE calculator.")
+        atoms.calc = mace_mp(model="medium", device="cpu")
+    elif model == "7net-mf-ompa":
+        typer.echo("Using SevenNet calculator.")
+        atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
+
+    typer.echo(f"Running MD for {steps} steps at {temperature}K...")
     run_md(atoms, log_path=log, temperature_K=temperature, steps=steps)
     typer.echo(f"MD simulation complete. Log written to: {log}")
