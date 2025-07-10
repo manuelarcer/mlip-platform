@@ -2,13 +2,10 @@ from pathlib import Path
 import typer
 from ase.io import read
 from mlip_platform.core.neb import CustomNEB
-import matplotlib.pyplot as plt
-import pandas as pd
 
 app = typer.Typer()
 
 def detect_mlip() -> str:
-    """Detect installed MLIP model automatically."""
     try:
         import sevenn
         return "7net-mf-ompa"
@@ -22,7 +19,11 @@ def detect_mlip() -> str:
 @app.command()
 def neb(
     initial: Path = typer.Option(..., prompt=True, help="Initial structure file (.vasp)"),
-    final: Path = typer.Option(..., prompt=True, help="Final structure file (.vasp)")
+    final: Path = typer.Option(..., prompt=True, help="Final structure file (.vasp)"),
+    num_images: int = typer.Option(5, prompt="Number of NEB images", help="Number of NEB images"),
+    interp_fmax: float = typer.Option(0.1, prompt="IDPP interpolation fmax", help="Force threshold for IDPP interpolation"),
+    interp_steps: int = typer.Option(100, prompt="IDPP interpolation steps", help="Number of IDPP steps"),
+    fmax: float = typer.Option(0.05, prompt="Final NEB force threshold", help="Final force threshold for NEB optimization")
 ):
     """Run NEB interpolation and relaxation using an automatically detected MLIP model."""
 
@@ -35,18 +36,26 @@ def neb(
 
     mlip = detect_mlip()
     typer.echo(f"Detected MLIP: {mlip}")
+
     output_dir = Path("neb_result") / mlip
     images_dir = output_dir / "images"
     output_dir.mkdir(parents=True, exist_ok=True)
     images_dir.mkdir(parents=True, exist_ok=True)
 
+    typer.echo(f"Running NEB with:")
+    typer.echo(f" - num_images:    {num_images}")
+    typer.echo(f" - interp_fmax:   {interp_fmax}")
+    typer.echo(f" - interp_steps:  {interp_steps}")
+    typer.echo(f" - final fmax:    {fmax}")
+    typer.echo(f" - output_dir:    {output_dir}")
+
     neb = CustomNEB(
         initial=atoms_initial,
         final=atoms_final,
-        num_images=5,
-        interp_fmax=0.1,
-        interp_steps=100,
-        fmax=0.05,
+        num_images=num_images,
+        interp_fmax=interp_fmax,
+        interp_steps=interp_steps,
+        fmax=fmax,
         mlip=mlip,
         output_dir="neb_result"
     )
@@ -54,7 +63,7 @@ def neb(
     typer.echo("Interpolating with IDPP...")
     neb.interpolate_idpp()
 
-    typer.echo("Running NEB optimization...")
+    typer.echo(" Running NEB optimization...")
     neb.run_neb()
 
     typer.echo("Writing images and results...")
