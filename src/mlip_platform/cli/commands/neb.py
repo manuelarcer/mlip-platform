@@ -35,14 +35,12 @@ def neb(
         raise typer.Exit(code=1)
 
     mlip = detect_mlip()
-    typer.echo(f"Detected MLIP: {mlip}")
+    typer.echo(f"🧠 Detected MLIP: {mlip}")
 
     output_dir = Path("neb_result") / mlip
-    images_dir = output_dir / "images"
     output_dir.mkdir(parents=True, exist_ok=True)
-    images_dir.mkdir(parents=True, exist_ok=True)
 
-    typer.echo(f"Running NEB with:")
+    typer.echo(f"⚙️ Running NEB with:")
     typer.echo(f" - num_images:    {num_images}")
     typer.echo(f" - interp_fmax:   {interp_fmax}")
     typer.echo(f" - interp_steps:  {interp_steps}")
@@ -57,25 +55,22 @@ def neb(
         interp_steps=interp_steps,
         fmax=fmax,
         mlip=mlip,
-        output_dir="neb_result"
+        output_dir=output_dir
     )
 
-    typer.echo("Interpolating with IDPP...")
+    typer.echo("⚙️ Interpolating with IDPP...")
     neb.interpolate_idpp()
 
-    typer.echo(" Running NEB optimization...")
+    typer.echo("⚙️ Running NEB optimization...")
     neb.run_neb()
 
-    typer.echo("Writing images and results...")
-    neb.write_images(subdir="images")
+    typer.echo("💾 Processing results...")
     df = neb.process_results()
     neb.plot_results(df)
 
     typer.echo("✅ NEB complete. Output written to:")
     for file in ["A2B.traj", "idpp.traj", "idpp.log", "neb_data.csv", "neb_energy.png"]:
         typer.echo(f" - {output_dir / file}")
-    for f in sorted(images_dir.glob("*.vasp")):
-        typer.echo(f" - {f}")
 
 if __name__ == "__main__":
     app()

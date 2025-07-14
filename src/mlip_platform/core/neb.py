@@ -1,10 +1,12 @@
 from pathlib import Path
-from ase.io import read, write
+from ase.io import write
 from ase.mep import NEB
 from ase.mep.neb import idpp_interpolate
 from ase.optimize import MDMin
 import pandas as pd
 import matplotlib.pyplot as plt
+from scipy.interpolate import make_interp_spline
+import numpy as np
 
 class CustomNEB:
     def __init__(self, initial, final, num_images=9, interp_fmax=0.1, interp_steps=1000,
@@ -61,18 +63,33 @@ class CustomNEB:
         df.to_csv(csv_path, index=False)
         return df
 
-    def write_images(self, subdir='images'):
-        image_dir = self.output_dir / subdir
-        image_dir.mkdir(parents=True, exist_ok=True)
-        for i, image in enumerate(self.images):
-            write(image_dir / f'{i:02d}.vasp', image, format='vasp')
-
     def plot_results(self, df):
         fig_path = self.output_dir / "neb_energy.png"
-        plt.plot(df['i'], df['rel_e'], marker='o')
-        plt.xlabel("Image index")
+        x = df['i']
+        y = df['rel_e']
+
+        # Smooth curve with spline
+        x_smooth = np.linspace(x.min(), x.max(), 200)
+        spline = make_interp_spline(x, y, k=3)
+        y_smooth = spline(x_smooth)
+
+        plt.figure(figsize=(6, 4))
+        plt.plot(x_smooth, y_smooth, label="NEB Path", linewidth=2)
+        plt.scatter(x, y, color="blue", zorder=5)
+        plt.xlabel("Reaction Coordinate (Image Index)")
         plt.ylabel("Relative Energy (eV)")
         plt.title(f"NEB Energy Profile ({self.mlip})")
         plt.grid(True)
+
+        # Annotate energy barrier
+        barrier = y.max()
+        barrier_index = y.idxmax()
+        plt.annotate(f"Barrier: {barrier:.3f} eV",
+                     xy=(x[barrier_index], barrier),
+                     xytext=(x[barrier_index], barrier + 0.1),
+                     arrowprops=dict(arrowstyle="->"),
+                     fontsize=9)
+
+        plt.tight_layout()
         plt.savefig(fig_path)
         plt.close()
