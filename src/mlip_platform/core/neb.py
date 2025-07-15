@@ -19,7 +19,7 @@ class CustomNEB:
         self.interp_steps = interp_steps
         self.fmax = fmax
         self.mlip = mlip
-        self.output_dir = Path(output_dir) / mlip  # Save by model
+        self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.images = self.setup_neb()
 
