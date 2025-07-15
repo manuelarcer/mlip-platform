@@ -20,13 +20,11 @@ def detect_mlip() -> str:
 def neb(
     initial: Path = typer.Option(..., prompt=True, help="Initial structure file (.vasp)"),
     final: Path = typer.Option(..., prompt=True, help="Final structure file (.vasp)"),
-    num_images: int = typer.Option(5, prompt="Number of NEB images", help="Number of NEB images"),
-    interp_fmax: float = typer.Option(0.1, prompt="IDPP interpolation fmax", help="Force threshold for IDPP interpolation"),
-    interp_steps: int = typer.Option(100, prompt="IDPP interpolation steps", help="Number of IDPP steps"),
-    fmax: float = typer.Option(0.05, prompt="Final NEB force threshold", help="Final force threshold for NEB optimization")
+    num_images: int = typer.Option(5, prompt="Number of NEB images"),
+    interp_fmax: float = typer.Option(0.1, prompt="IDPP interpolation fmax"),
+    interp_steps: int = typer.Option(100, prompt="IDPP interpolation steps"),
+    fmax: float = typer.Option(0.05, prompt="Final NEB force threshold")
 ):
-    """Run NEB interpolation and relaxation using an automatically detected MLIP model."""
-
     atoms_initial = read(initial, format="vasp")
     atoms_final = read(final, format="vasp")
 
@@ -37,7 +35,8 @@ def neb(
     mlip = detect_mlip()
     typer.echo(f"🧠 Detected MLIP: {mlip}")
 
-    output_dir = Path("neb_result") / mlip
+    base_dir = initial.resolve().parent
+    output_dir = base_dir / "neb_result" / mlip
     output_dir.mkdir(parents=True, exist_ok=True)
 
     typer.echo(f"⚙️ Running NEB with:")
@@ -46,6 +45,18 @@ def neb(
     typer.echo(f" - interp_steps:  {interp_steps}")
     typer.echo(f" - final fmax:    {fmax}")
     typer.echo(f" - output_dir:    {output_dir}")
+
+    with open(output_dir / "neb_parameters.txt", "w") as f:
+        f.write("NEB Run Parameters\n")
+        f.write("===================\n")
+        f.write(f"MLIP model:        {mlip}\n")
+        f.write(f"Initial:           {initial}\n")
+        f.write(f"Final:             {final}\n")
+        f.write(f"Number of images:  {num_images}\n")
+        f.write(f"IDPP fmax:         {interp_fmax}\n")
+        f.write(f"IDPP steps:        {interp_steps}\n")
+        f.write(f"Final fmax:        {fmax}\n")
+        f.write(f"Output dir:        {output_dir}\n")
 
     neb = CustomNEB(
         initial=atoms_initial,
@@ -58,18 +69,18 @@ def neb(
         output_dir=output_dir
     )
 
-    typer.echo("⚙️ Interpolating with IDPP...")
+    typer.echo(" Interpolating with IDPP...")
     neb.interpolate_idpp()
 
-    typer.echo("⚙️ Running NEB optimization...")
+    typer.echo(" Running NEB optimization...")
     neb.run_neb()
 
-    typer.echo("💾 Processing results...")
+    typer.echo(" Processing results...")
     df = neb.process_results()
     neb.plot_results(df)
 
     typer.echo("✅ NEB complete. Output written to:")
-    for file in ["A2B.traj", "idpp.traj", "idpp.log", "neb_data.csv", "neb_energy.png"]:
+    for file in ["A2B.traj", "A2B_full.traj", "idpp.traj", "idpp.log", "neb_data.csv", "neb_energy.png", "neb_parameters.txt"]:
         typer.echo(f" - {output_dir / file}")
 
 if __name__ == "__main__":

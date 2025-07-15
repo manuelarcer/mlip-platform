@@ -5,6 +5,7 @@ from ase.mep.neb import idpp_interpolate
 from ase.optimize import MDMin
 import pandas as pd
 import matplotlib.pyplot as plt
+from ase.io.trajectory import Trajectory
 from scipy.interpolate import make_interp_spline
 import numpy as np
 
@@ -43,13 +44,32 @@ class CustomNEB:
         idpp_interpolate(self.images, traj=str(traj_path), log=str(log_path),
                          fmax=self.interp_fmax, mic=True, steps=self.interp_steps)
 
-    def run_neb(self, optimizer=MDMin, trajectory='A2B.traj', climb=False):
+    def run_neb(self, optimizer=MDMin, trajectory='A2B.traj', full_traj='A2B_full.traj', climb=False):
         neb = NEB(self.images, climb=climb)
         for image in self.images:
             image.calc = self.setup_calculator()
-        traj_path = self.output_dir / trajectory
-        opt = optimizer(neb, trajectory=str(traj_path))
+
+        full_traj_path = self.output_dir / full_traj
+        traj_writer = Trajectory(str(full_traj_path), 'w')
+
+        def log_images():
+            for img in neb.images:
+                img.get_potential_energy()
+                traj_writer.write(img)
+
+        opt = optimizer(neb)
+        opt.attach(log_images)
         opt.run(fmax=self.fmax)
+        traj_writer.close()
+
+        for image in self.images:
+            image.get_potential_energy()
+
+        traj_path = self.output_dir / trajectory
+        with Trajectory(str(traj_path), 'w') as traj:
+            for img in self.images:
+                traj.write(img)
+
         return self.images
 
     def process_results(self):
@@ -59,8 +79,7 @@ class CustomNEB:
             results['e'].append(image.get_potential_energy())
         df = pd.DataFrame(results)
         df['rel_e'] = df['e'] - df['e'].min()
-        csv_path = self.output_dir / "neb_data.csv"
-        df.to_csv(csv_path, index=False)
+        df.to_csv(self.output_dir / "neb_data.csv", index=False)
         return df
 
     def plot_results(self, df):
@@ -68,7 +87,6 @@ class CustomNEB:
         x = df['i']
         y = df['rel_e']
 
-        # Smooth curve with spline
         x_smooth = np.linspace(x.min(), x.max(), 200)
         spline = make_interp_spline(x, y, k=3)
         y_smooth = spline(x_smooth)
@@ -81,7 +99,6 @@ class CustomNEB:
         plt.title(f"NEB Energy Profile ({self.mlip})")
         plt.grid(True)
 
-        # Annotate energy barrier
         barrier = y.max()
         barrier_index = y.idxmax()
         plt.annotate(f"Barrier: {barrier:.3f} eV",
