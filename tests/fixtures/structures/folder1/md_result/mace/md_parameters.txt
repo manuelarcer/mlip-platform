@@ -1,0 +1,7 @@
+{
+  "structure": "tests/fixtures/structures/folder1/li_final.vasp",
+  "steps": 100,
+  "temperature": 298.0,
+  "timestep_fs": 2.0,
+  "model": "mace"
+}

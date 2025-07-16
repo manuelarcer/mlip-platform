@@ -9,13 +9,14 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 def initialize_md(atoms, temperature_K=298, timestep_fs=2.0):
+    """Initialize velocity and integrator."""
     MaxwellBoltzmannDistribution(atoms, temperature_K=temperature_K)
     dyn = VelocityVerlet(atoms, timestep=timestep_fs * units.fs)
     return dyn
 
 def run_md(atoms, log_path=None, temperature_K=298, timestep_fs=2.0, steps=10,
            interval=1, stress=False, output_dir="md_result", model_name="mlip"):
-
+    
     output_path = Path(output_dir) / model_name
     output_path.mkdir(parents=True, exist_ok=True)
 
@@ -26,18 +27,16 @@ def run_md(atoms, log_path=None, temperature_K=298, timestep_fs=2.0, steps=10,
 
     dyn = initialize_md(atoms, temperature_K=temperature_K, timestep_fs=timestep_fs)
 
-    # Write to trajectory file
+    # Attach trajectory writer
     traj_writer = Trajectory(str(traj_file), 'w', atoms)
     dyn.attach(traj_writer.write, interval=interval)
 
-    # Live logging to terminal
+    # Attach logger to terminal and optional file
     dyn.attach(MDLogger(dyn, atoms, sys.stdout, header=True, stress=stress), interval=interval)
-
-    # Optional logging to file
     if log_path:
         dyn.attach(MDLogger(dyn, atoms, log_path, header=True, stress=stress), interval=interval)
 
-    # Custom logging for CSV + plot
+    # Collect data for CSV and plot
     log_data = {"step": [], "time(fs)": [], "temperature(K)": [], "total_energy(eV)": []}
 
     def log_properties():
@@ -52,29 +51,28 @@ def run_md(atoms, log_path=None, temperature_K=298, timestep_fs=2.0, steps=10,
 
     dyn.attach(log_properties, interval=interval)
 
-    # Run simulation
     dyn.run(steps)
 
-    # Save data to CSV
+    # Save CSV
     df = pd.DataFrame(log_data)
     df.to_csv(csv_file, index=False)
 
-    # Plot energy
+    # Plot energy vs time
     plt.figure()
-    plt.plot(df["step"], df["total_energy(eV)"], label="Total Energy (eV)")
-    plt.xlabel("Step")
-    plt.ylabel("Energy (eV)")
-    plt.title("MD: Energy vs. Step")
+    plt.plot(df["time(fs)"], df["total_energy(eV)"], label="Energy (eV)")
+    plt.xlabel("Time (fs)")
+    plt.ylabel("Total Energy (eV)")
+    plt.title("MD: Energy vs. Time")
     plt.grid(True)
     plt.savefig(energy_plot)
     plt.close()
 
-    # Plot temperature
+    # Plot temperature vs time
     plt.figure()
-    plt.plot(df["step"], df["temperature(K)"], label="Temperature (K)", color="orange")
-    plt.xlabel("Step")
+    plt.plot(df["time(fs)"], df["temperature(K)"], label="Temperature (K)", color="orange")
+    plt.xlabel("Time (fs)")
     plt.ylabel("Temperature (K)")
-    plt.title("MD: Temperature vs. Step")
+    plt.title("MD: Temperature vs. Time")
     plt.grid(True)
     plt.savefig(temp_plot)
     plt.close()

@@ -34,17 +34,20 @@ def run(
     atoms = read(structure)
     model = detect_model()
 
-    typer.echo(f"Detected MLIP: {model}")
+    typer.echo(f"🧠 Detected MLIP: {model}")
     typer.echo(f"Running MD for {steps} steps at {temperature} K, timestep {timestep} fs...")
 
     if model == "mace":
-        typer.echo(" Using MACE calculator.")
+        typer.echo("Using MACE calculator.")
         atoms.calc = mace_mp(model="medium", device="cpu")
     elif model == "7net-mf-ompa":
         typer.echo("Using SevenNet calculator.")
         atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
 
-    typer.echo("Starting MD simulation...")
+    # Output dir based on structure location
+    structure_dir = structure.parent
+    output_dir = structure_dir / "md_result"
+
     run_md(
         atoms,
         log_path=None,
@@ -52,15 +55,26 @@ def run(
         timestep_fs=timestep,
         steps=steps,
         interval=1,
-        output_dir="md_result",
+        output_dir=output_dir,
         model_name=model
     )
 
-    output_dir = Path("md_result") / model
+    # Save parameter log
+    param_log = output_dir / model / "md_params.txt"
+    with open(param_log, "w") as f:
+        f.write("MD Run Parameters\n")
+        f.write("===================\n")
+        f.write(f"MLIP model:        {model}\n")
+        f.write(f"Structure:         {structure}\n")
+        f.write(f"Number of steps:   {steps}\n")
+        f.write(f"Temperature (K):   {temperature}\n")
+        f.write(f"Timestep (fs):     {timestep}\n")
+        f.write(f"Output dir:        {output_dir.resolve() / model}\n")
+
     typer.echo("💾 Processing results...")
     typer.echo("✅ MD complete. Output written to:")
-    for fname in ["md.traj", "md_energy.csv", "md_energy.png", "md_temperature.png"]:
-        typer.echo(f" - {output_dir / fname}")
+    for fname in ["md.traj", "md_energy.csv", "md_energy.png", "md_temperature.png", "md_params.txt"]:
+        typer.echo(f" - {output_dir / model / fname}")
 
 if __name__ == "__main__":
     app()
