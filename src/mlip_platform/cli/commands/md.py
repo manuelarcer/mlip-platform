@@ -30,13 +30,14 @@ def run(
     temperature: float = typer.Option(298, prompt=True, help="Temperature in K"),
     timestep: float = typer.Option(2.0, prompt=True, help="Timestep in fs")
 ):
-    """Run MD simulation using an available MLIP model."""
+    """Run MD simulation using a supported MLIP model."""
     atoms = read(structure)
     model = detect_model()
 
     typer.echo(f"🧠 Detected MLIP: {model}")
-    typer.echo(f"Running MD for {steps} steps at {temperature} K, timestep {timestep} fs...")
+    typer.echo(f"Running MD for {steps} steps at {temperature} K, timestep {timestep} fs")
 
+    # Assign calculator
     if model == "mace":
         typer.echo("Using MACE calculator.")
         atoms.calc = mace_mp(model="medium", device="cpu")
@@ -44,13 +45,10 @@ def run(
         typer.echo("Using SevenNet calculator.")
         atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
 
-    # Output dir based on structure location
-    structure_dir = structure.parent
-    output_dir = structure_dir / "md_result"
+    output_dir = structure.parent
 
     run_md(
-        atoms,
-        log_path=None,
+        atoms=atoms,
         temperature_K=temperature,
         timestep_fs=timestep,
         steps=steps,
@@ -59,22 +57,21 @@ def run(
         model_name=model
     )
 
-    # Save parameter log
-    param_log = output_dir / model / "md_params.txt"
-    with open(param_log, "w") as f:
+    # Save parameters
+    param_file = output_dir / "md_params.txt"
+    with open(param_file, "w") as f:
         f.write("MD Run Parameters\n")
         f.write("===================\n")
         f.write(f"MLIP model:        {model}\n")
-        f.write(f"Structure:         {structure}\n")
+        f.write(f"Structure:         {structure.name}\n")
         f.write(f"Number of steps:   {steps}\n")
         f.write(f"Temperature (K):   {temperature}\n")
         f.write(f"Timestep (fs):     {timestep}\n")
-        f.write(f"Output dir:        {output_dir.resolve() / model}\n")
+        f.write(f"Output dir:        {output_dir.resolve()}\n")
 
-    typer.echo("💾 Processing results...")
     typer.echo("✅ MD complete. Output written to:")
-    for fname in ["md.traj", "md_energy.csv", "md_energy.png", "md_temperature.png", "md_params.txt"]:
-        typer.echo(f" - {output_dir / model / fname}")
+    for file in ["md.traj", "md_energy.csv", "md_energy.png", "md_temperature.png", "md_params.txt"]:
+        typer.echo(f" - {(output_dir / file).resolve()}")
 
 if __name__ == "__main__":
     app()

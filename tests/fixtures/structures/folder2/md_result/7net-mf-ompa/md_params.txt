@@ -1,8 +1,0 @@
-MD Run Parameters
-===================
-MLIP model:        7net-mf-ompa
-Structure:         li_final.vasp
-Number of steps:   100
-Temperature (K):   298.0
-Timestep (fs):     2.0
-Output dir:        /Users/leeyuanzhang/Documents/mlip-platform-output_traj/tests/fixtures/structures/folder2/md_result/7net-mf-ompa

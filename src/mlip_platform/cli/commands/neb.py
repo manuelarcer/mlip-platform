@@ -1,7 +1,7 @@
 from pathlib import Path
 import typer
 from ase.io import read
-from mlip_platform.core.neb import CustomNEB
+from mlip_platform.core.neb import CustomNEB  # adjust import path as needed
 
 app = typer.Typer()
 
@@ -36,8 +36,7 @@ def neb(
     typer.echo(f"🧠 Detected MLIP: {mlip}")
 
     base_dir = initial.resolve().parent
-    output_dir = base_dir / "neb_result" / mlip
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = base_dir  
 
     typer.echo(f"⚙️ Running NEB with:")
     typer.echo(f" - num_images:    {num_images}")
@@ -79,9 +78,14 @@ def neb(
     df = neb.process_results()
     neb.plot_results(df)
 
+    typer.echo("Exporting POSCARs...")
+    neb.export_poscars()
+
     typer.echo("✅ NEB complete. Output written to:")
     for file in ["A2B.traj", "A2B_full.traj", "idpp.traj", "idpp.log", "neb_data.csv", "neb_energy.png", "neb_parameters.txt"]:
         typer.echo(f" - {output_dir / file}")
+    for i in range(num_images):
+        typer.echo(f" - {output_dir / f'{i:02d}' / 'POSCAR'}")
 
 if __name__ == "__main__":
     app()

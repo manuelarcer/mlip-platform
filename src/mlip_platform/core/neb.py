@@ -11,7 +11,7 @@ import numpy as np
 
 class CustomNEB:
     def __init__(self, initial, final, num_images=9, interp_fmax=0.1, interp_steps=1000,
-                 fmax=0.05, mlip='7net-mf-ompa', output_dir='neb_result'):
+                 fmax=0.05, mlip='7net-mf-ompa', output_dir='.'):
         self.initial = initial
         final.set_cell(initial.get_cell(), scale_atoms=True)
         self.final = final
@@ -110,3 +110,10 @@ class CustomNEB:
         plt.tight_layout()
         plt.savefig(fig_path)
         plt.close()
+
+    def export_poscars(self):
+        from ase.io.vasp import write_vasp
+        for i, image in enumerate(self.images):
+            folder = self.output_dir / f"{i:02d}"
+            folder.mkdir(exist_ok=True)
+            write_vasp(folder / "POSCAR", image, direct=True, vasp5=True, sort=True)
