@@ -1,0 +1,10 @@
+NEB Run Parameters
+===================
+MLIP model:        7net-mf-ompa
+Initial:           li_initial.vasp
+Final:             li_final.vasp
+Number of images:  6
+IDPP fmax:         0.3
+IDPP steps:        10
+Final fmax:        0.5
+Output dir:        /Users/leeyuanzhang/Documents/mlip-platform-output_traj/tests/fixtures/structures/folder2_neb_sevenn
