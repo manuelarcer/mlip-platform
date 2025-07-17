@@ -1,108 +1,106 @@
-# MLIP Platform
+# 🧠 MLIP Platform
 
-Package to use machine learning interatomic potentials (MLIPs) for atomic simulations including optimization, molecular dynamics, and transition state search.
+A modular CLI toolkit for evaluating Machine Learning Interatomic Potentials (MLIPs) via:
 
----
+- **Molecular Dynamics (MD)**
+- **Nudged Elastic Band (NEB) simulations**
+- **Benchmarking timing**
 
-## 🚀 Features
-
-### Benchmarking Tool
-- Runs MLIP calculations in **isolated virtual environments**
-- Supports both **MACE** and **SevenNet**
-- Reports **energy** and **timing** in a unified summary
-- Designed for **research** and **performance comparison**
-
-### NEB Test Suite
-- Custom `CustomNEB` wrapper class using ASE's NEB tools
-- Supports both **SevenNet** and **MACE** models via clean `mlip=` argument
-- IDPP interpolation for improved initial path generation
-- Modular, testable design with pytest
-- Virtual environment separation to avoid dependency clashes
+Supports both **SevenNet** and **MACE** models with isolated virtual environments and streamlined subcommands using [Typer](https://typer.tiangolo.com/).
 
 ---
 
-## 📁 Folder Structure
+## 🚀 Key Features
 
-```
-mlip_platform/
-├── src/
-│   └── mlip_platform/
-│       ├── __init__.py
-│       └── neb.py              # Core NEB logic
-├── test/
-│   ├── POSCAR                  # Example VASP-format structure
-│   ├── POSCAR_initial          # Initial structure for NEB
-│   ├── POSCAR_final            # Final structure for NEB
-│   ├── test_cli.py             # CLI functionality test
-│   ├── test_neb_functionality_sevenn.py  # SevenNet NEB test
-│   └── test_neb_functionality_mace.py    # MACE NEB test
-├── mlip_bench.py               # Main CLI benchmarking tool
-├── bench_driver.py             # Worker script for benchmarking
-├── README.md
-└── pytest.ini
+✅ Unified CLI: `mlip md`, `mlip neb`, `mlip benchmark`  
+🧪 Benchmarking engine with performance comparison  
+🔁 IDPP-enhanced NEB interpolation  
+🌡️ MD with temperature, timestep, and output logging  
+📦 Subcommand-based architecture for easy extensibility  
+🧼 Clean separation via subprocess and venvs  
+🧪 Full Pytest-based test suite
+
+---
+
+## 📦 Installation
+
+1. **Clone the repo**
+```bash
+git clone <repo-url>
+cd mlip-platform
 ```
 
----
+2. **Install package**
+```bash
+pip install -e .
+```
 
-## 🔧 Setup
+3. **Set up MLIP environments**
 
-### 1. Create and activate virtual environments:
+You must install SevenNet and MACE in separate virtual environments due to dependency conflicts:
 
 ```bash
-# MACE environment
-python3 -m venv ~/Documents/mace-env
-source ~/Documents/mace-env/bin/activate
-pip install mace
-
-# SevenNet environment
-python3 -m venv ~/Documents/sevenn-env
-source ~/Documents/sevenn-env/bin/activate
+# SevenNet
+python -m venv sevenn-env
+source sevenn-env/bin/activate
 pip install sevenn
-```
 
-### 2. Update paths in scripts as needed for your environment
+# MACE
+python -m venv mace-env
+source mace-env/bin/activate
+pip install mace
+```
 
 ---
 
-## ▶️ Usage
+## 💻 CLI Usage
 
-### Benchmarking Tool
-Run the benchmark on any VASP-format structure file:
-
+### Show help
 ```bash
-python mlip_bench.py test/POSCAR
+mlip --help
 ```
 
-You can specify custom Python interpreters for each MLIP:
-
+### 🔬 Run MD simulation
 ```bash
-python mlip_bench.py test/POSCAR --mace-py /path/to/mace-env/bin/python --sevenn-py /path/to/sevenn-env/bin/python
+md
 ```
+Prompts for:
+- Structure file (.vasp)
+- Number of steps
+- Temperature (K)
+- Timestep (fs)
 
-#### CLI Options:
-- `--mace-py`: Path to Python interpreter for MACE (default: 'python')
-- `--sevenn-py`: Path to Python interpreter for SevenNet (default: 'python')
+✔ Outputs: `md.traj`, `md_energy.csv`, plots, and `md_params.txt`
 
-Example output:
-```
-=== Results ===
-MACE   : -3.797862 eV  | 0.27 s
-Sevenn : -3.801770 eV  | 0.44 s
-```
+---
 
-### NEB Tests
-Each MLIP is tested with its own virtual environment:
-
-#### Run SevenNet Test
+### 🧗 Run NEB simulation
 ```bash
-source ~/Documents/sevenn-env/bin/activate
-pytest test/test_neb_functionality_sevenn.py
+neb
 ```
+Prompts for:
+- Initial & final .vasp structures
+- Number of NEB images
+- IDPP interpolation settings
+- Final force convergence criteria
 
-#### Run MACE Test
+✔ Outputs: `A2B.traj`, `idpp.log`, `neb_data.csv`, `neb_energy.png`, interpolated POSCARs
+
+---
+
+### 📊 Run Benchmark
 ```bash
-source ~/Documents/mace-env/bin/activate
-pytest test/test_neb_functionality_mace.py
+benchmark
+```
+Prompts for structure file, benchmarks SevenNet & MACE via `bench_driver.py`.
+
+✔ Example output:
+```json
+{
+  "mlip": "mace",
+  "energy": -3.79,
+  "time": 0.27
+}
 ```
 
 ---
@@ -111,132 +109,34 @@ pytest test/test_neb_functionality_mace.py
 
 Run all tests:
 ```bash
-pytest test/
+pytest
 ```
 
----
-
-## 💡 Customization
-
-To switch MLIP in `CustomNEB`, change the `mlip` parameter:
-```python
-mlip="sevenn-mf-ompa"  # or "mace-medium"
-```
-
----
-
-## 🧠 Scientific Purpose
-
-- **Benchmarking**: Compare MLIPs performance on energy calculations
-- **NEB**: Estimate minimum energy paths (MEP) between atomic states for:
-  - Diffusion processes
-  - Chemical reactions  
-  - Phase transitions
-
-This setup uses MLIPs for fast approximations compared to DFT calculations.
-
----
-
-## 🧠 Credits
-
-This design was inspired by real research needs where MLIPs can't co-exist due to dependency conflicts. It separates concerns using subprocesses and virtual environments while staying simple and reproducible.
-
-This repository contains a modular NEB (Nudged Elastic Band) test framework for evaluating machine learning interatomic potentials (MLIPs) using both **SevenNet** and **MACE**. The goal is to benchmark MLIPs on transition path modeling between atomic structures using ASE.
-
----
-
-## 🔧 Features
-
-- Custom `CustomNEB` wrapper class using ASE's NEB tools
-- Supports both **SevenNet** and **MACE** models via clean `mlip=` argument
-- IDPP interpolation for improved initial path generation
-- Modular, testable design with pytest
-- Virtual environment separation to avoid dependency clashes
-
----
-
-## 📁 File Structure
-
-```
-mlip-platform-(NEB)/
-├── src/
-│ └── milp_platform/
-│ ├── init.py
-│ └── neb.py # Core NEB logic
-├── test/
-│ ├── POSCAR_initial # Initial structure
-│ ├── POSCAR_final # Final structure
-│ ├── test_neb_functionality_sevenn.py # SevenNet NEB test
-│ └── test_neb_functionality_mace.py # MACE NEB test
-├── README.md
-└── pytest.ini
-
----
-
-## 🧪 Tests
-
-Each MLIP is tested with its own virtual environment:
-
-### ▶️ Run SevenNet Test
-
-Activate your SevenNet env:
-
+Run individual model test:
 ```bash
-source ~/Documents/sevenn-env/bin/activate
-pytest test/test_neb_functionality_sevenn.py
-```
-
-### ▶️ Run MACE Test
-
-Activate your MACE env:
-
-```bash
-source ~/Documents/mace-env/bin/activate
-pytest test/test_neb_functionality_mace.py
-```
-
----
-
-## 💡 Customization
-
-To switch MLIP in `CustomNEB`, change the `mlip` parameter:
-```python
-mlip="sevenn-mf-ompa"  # or "mace-medium"
-```
-
----
-
-## 🛠️ Virtual Environments
-
-Due to dependency conflicts, SevenNet and MACE are run in **separate Python virtual environments**. Make sure each environment has its respective package installed:
-
-### Example setup:
-```bash
-# Create and activate
-python3.11 -m venv sevenn-env
 source sevenn-env/bin/activate
-
-# Inside env
-pip install -e /path/to/sevenn
+pytest tests/test_neb_sevenn.py
 ```
 
-Repeat similarly for MACE.
+---
+
+## 🧠 Scientific Use Cases
+
+- ⚛️ **NEB**: Compute Minimum Energy Pathways (MEP) between atomic states  
+- 🧪 **Benchmarking**: Compare speed and accuracy of MLIPs  
+- 🌡️ **MD**: Simulate temperature-dependent atomic dynamics  
 
 ---
 
-## 🧠 Scientific Purpose
+## 🛠️ Developer Notes
 
-NEB is used to estimate the **minimum energy path (MEP)** between two atomic states — relevant for:
-- Diffusion
-- Reactions
-- Phase transitions
-
-This setup uses MLIPs to perform fast approximations compared to DFT.
-
----
-
-## 📌 TODO / Future
-
-- Add `run()` test to validate force convergence
-- Compare energy profiles along NEB path
-- Auto-log timing and ΔE summary
+- CLI powered by [`typer`](https://typer.tiangolo.com/)
+- Entry points (via `setup.py`):
+  ```python
+  console_scripts=[
+    "md = mlip_platform.cli.commands.md:app",
+    "neb = mlip_platform.cli.commands.neb:app",
+    "benchmark = mlip_platform.cli.commands.benchmark:app"
+  ]
+  ```
+- All outputs/logs are saved next to structure input files
