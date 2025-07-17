@@ -1,0 +1,8 @@
+MD Run Parameters
+===================
+MLIP model:        mace
+Structure:         li_final.vasp
+Number of steps:   100
+Temperature (K):   298.0
+Timestep (fs):     1.0
+Output dir:        /Users/leeyuanzhang/Documents/mlip-platform-output_traj/tests/fixtures/structures/folder2/md_result/mace
