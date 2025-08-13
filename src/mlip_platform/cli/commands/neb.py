@@ -1,52 +1,91 @@
-import typer
 from pathlib import Path
+import typer
 from ase.io import read
-from mlip_platform.core.neb import CustomNEB
+from mlip_platform.core.neb import CustomNEB  # adjust import path as needed
 
-# Optional calculator imports (just to check environment)
-try:
-    from mace.calculators import mace_mp
-except ImportError:
-    mace_mp = None
+app = typer.Typer()
 
-try:
-    from sevenn.calculator import SevenNetCalculator
-except ImportError:
-    SevenNetCalculator = None
-
-app = typer.Typer(help="Run NEB calculations between two structures.")
-
-def detect_model():
-    if mace_mp:
-        return "mace"
-    elif SevenNetCalculator:
+def detect_mlip() -> str:
+    try:
+        import sevenn
         return "7net-mf-ompa"
-    else:
-        raise typer.Exit("No supported MLIP model found in the environment (MACE or SevenNet).")
+    except ImportError:
+        try:
+            import mace
+            return "mace"
+        except ImportError:
+            raise typer.Exit("❌ No supported MLIP found. Please install SevenNet or MACE.")
 
 @app.command()
 def neb(
     initial: Path = typer.Option(..., prompt=True, help="Initial structure file (.vasp)"),
-    final: Path = typer.Option(..., prompt=True, help="Final structure file (.vasp)")
+    final: Path = typer.Option(..., prompt=True, help="Final structure file (.vasp)"),
+    num_images: int = typer.Option(5, prompt="Number of NEB images"),
+    interp_fmax: float = typer.Option(0.1, prompt="IDPP interpolation fmax"),
+    interp_steps: int = typer.Option(100, prompt="IDPP interpolation steps"),
+    fmax: float = typer.Option(0.05, prompt="Final NEB force threshold")
 ):
-    """Run NEB interpolation and relaxation using available MLIP."""
-    mlip = detect_model()
-    typer.echo(f"Using model: {mlip}")
-
     atoms_initial = read(initial, format="vasp")
     atoms_final = read(final, format="vasp")
+
+    if len(atoms_initial) != len(atoms_final):
+        typer.echo("❌ Error: Initial and final structures must have the same number of atoms.")
+        raise typer.Exit(code=1)
+
+    mlip = detect_mlip()
+    typer.echo(f"🧠 Detected MLIP: {mlip}")
+
+    base_dir = initial.resolve().parent
+    output_dir = base_dir  
+
+    typer.echo(f"⚙️ Running NEB with:")
+    typer.echo(f" - num_images:    {num_images}")
+    typer.echo(f" - interp_fmax:   {interp_fmax}")
+    typer.echo(f" - interp_steps:  {interp_steps}")
+    typer.echo(f" - final fmax:    {fmax}")
+    typer.echo(f" - output_dir:    {output_dir}")
+
+    with open(output_dir / "neb_parameters.txt", "w") as f:
+        f.write("NEB Run Parameters\n")
+        f.write("===================\n")
+        f.write(f"MLIP model:        {mlip}\n")
+        f.write(f"Initial:           {initial}\n")
+        f.write(f"Final:             {final}\n")
+        f.write(f"Number of images:  {num_images}\n")
+        f.write(f"IDPP fmax:         {interp_fmax}\n")
+        f.write(f"IDPP steps:        {interp_steps}\n")
+        f.write(f"Final fmax:        {fmax}\n")
+        f.write(f"Output dir:        {output_dir}\n")
 
     neb = CustomNEB(
         initial=atoms_initial,
         final=atoms_final,
-        num_images=5,
-        interp_fmax=0.1,
-        interp_steps=100,
-        fmax=0.05,
-        mlip=mlip
+        num_images=num_images,
+        interp_fmax=interp_fmax,
+        interp_steps=interp_steps,
+        fmax=fmax,
+        mlip=mlip,
+        output_dir=output_dir
     )
 
-    typer.echo("Running NEB interpolation and optimization...")
+    typer.echo(" Interpolating with IDPP...")
     neb.interpolate_idpp()
+
+    typer.echo(" Running NEB optimization...")
     neb.run_neb()
-    typer.echo("✅ NEB calculation complete.")
+
+    typer.echo(" Processing results...")
+    df = neb.process_results()
+    neb.plot_results(df)
+
+    typer.echo("Exporting POSCARs...")
+    neb.export_poscars()
+
+    typer.echo("✅ NEB complete. Output written to:")
+    for file in ["A2B.traj", "A2B_full.traj", "idpp.traj", "idpp.log", "neb_data.csv", "neb_energy.png", "neb_parameters.txt"]:
+        typer.echo(f" - {output_dir / file}")
+    for i in range(num_images):
+        typer.echo(f" - {output_dir / f'{i:02d}' / 'POSCAR'}")
+
+if __name__ == "__main__":
+    app()
