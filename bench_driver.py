@@ -5,6 +5,7 @@ from ase.io import read
 
 mlip_name = sys.argv[2]
 structure = sys.argv[1]
+
 if mlip_name == "mace":
     from mace.calculators import mace_mp
     calc = mace_mp(model="medium", device="cpu")
@@ -12,6 +13,13 @@ if mlip_name == "mace":
 elif mlip_name == "sevenn":
     from sevenn.calculator import SevenNetCalculator
     calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
+
+elif mlip_name.startswith("uma-"):
+    # UMA model, optional task parameter
+    task_name = sys.argv[3] if len(sys.argv) > 3 else "omat"
+    from fairchem.core import pretrained_mlip, FAIRChemCalculator
+    predictor = pretrained_mlip.get_predict_unit(mlip_name, device="cpu")
+    calc = FAIRChemCalculator(predictor, task_name=task_name)
 
 else:
     raise ValueError(f"Unknown MLIP: {mlip_name}")

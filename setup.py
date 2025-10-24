@@ -17,6 +17,7 @@ setup(
             'md = mlip_platform.cli.commands.md:app',
             'neb = mlip_platform.cli.commands.neb:app',
             'benchmark = mlip_platform.cli.commands.benchmark:app',
+            'optimize = mlip_platform.cli.commands.optimize:app',
         ],
     },
     include_package_data=True,

@@ -2,3 +2,4 @@
 benchmark = mlip_platform.cli.commands.benchmark:app
 md = mlip_platform.cli.commands.md:app
 neb = mlip_platform.cli.commands.neb:app
+optimize = mlip_platform.cli.commands.optimize:app

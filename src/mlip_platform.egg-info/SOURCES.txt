@@ -14,6 +14,7 @@ src/mlip_platform/cli/commands/__init__.py
 src/mlip_platform/cli/commands/benchmark.py
 src/mlip_platform/cli/commands/md.py
 src/mlip_platform/cli/commands/neb.py
+src/mlip_platform/cli/commands/optimize.py
 tests/test_benchmark.py
 tests/test_cli.py
 tests/test_md_mace.py

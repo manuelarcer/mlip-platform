@@ -11,7 +11,7 @@ import numpy as np
 
 class CustomNEB:
     def __init__(self, initial, final, num_images=9, interp_fmax=0.1, interp_steps=1000,
-                 fmax=0.05, mlip='7net-mf-ompa', output_dir='.'):
+                 fmax=0.05, mlip='7net-mf-ompa', uma_task='omat', output_dir='.'):
         self.initial = initial
         final.set_cell(initial.get_cell(), scale_atoms=True)
         self.final = final
@@ -20,18 +20,34 @@ class CustomNEB:
         self.interp_steps = interp_steps
         self.fmax = fmax
         self.mlip = mlip
+        self.uma_task = uma_task
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.images = self.setup_neb()
 
-    def setup_calculator(self, model=None):
+    def setup_calculator(self, model=None, uma_task=None):
+        """
+        Setup calculator for the given MLIP model.
+
+        Parameters
+        ----------
+        model : str, optional
+            Model name. For UMA, use format "uma-s-1p1" or "uma-m-1p1".
+        uma_task : str, optional
+            Task name for UMA models: "omat", "oc20", "omol", or "odac" (default: uses self.uma_task)
+        """
         model = model or self.mlip
+        uma_task = uma_task or self.uma_task
         if model == '7net-mf-ompa':
             from sevenn.calculator import SevenNetCalculator
             return SevenNetCalculator(model, modal='mpa')
         elif model == 'mace':
             from mace.calculators import mace_mp
             return mace_mp(model="medium", device="cpu")
+        elif model.startswith('uma-'):
+            from fairchem.core import pretrained_mlip, FAIRChemCalculator
+            predictor = pretrained_mlip.get_predict_unit(model, device="cpu")
+            return FAIRChemCalculator(predictor, task_name=uma_task)
         else:
             raise ValueError(f"Unknown model: {model}")
 

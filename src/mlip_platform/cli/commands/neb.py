@@ -6,15 +6,26 @@ from mlip_platform.core.neb import CustomNEB  # adjust import path as needed
 app = typer.Typer()
 
 def detect_mlip() -> str:
+    """Detect available MLIP model in order of preference: UMA > SevenNet > MACE"""
+    try:
+        import fairchem.core
+        return "uma-s-1p1"  # Default UMA model
+    except ImportError:
+        pass
+
     try:
         import sevenn
         return "7net-mf-ompa"
     except ImportError:
-        try:
-            import mace
-            return "mace"
-        except ImportError:
-            raise typer.Exit("❌ No supported MLIP found. Please install SevenNet or MACE.")
+        pass
+
+    try:
+        import mace
+        return "mace"
+    except ImportError:
+        pass
+
+    raise typer.Exit("❌ No supported MLIP found. Please install UMA (fairchem-core), SevenNet, or MACE.")
 
 @app.command()
 def neb(
@@ -23,7 +34,9 @@ def neb(
     num_images: int = typer.Option(5, prompt="Number of NEB images"),
     interp_fmax: float = typer.Option(0.1, prompt="IDPP interpolation fmax"),
     interp_steps: int = typer.Option(100, prompt="IDPP interpolation steps"),
-    fmax: float = typer.Option(0.05, prompt="Final NEB force threshold")
+    fmax: float = typer.Option(0.05, prompt="Final NEB force threshold"),
+    mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
+    uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)")
 ):
     atoms_initial = read(initial, format="vasp")
     atoms_final = read(final, format="vasp")
@@ -32,8 +45,15 @@ def neb(
         typer.echo("❌ Error: Initial and final structures must have the same number of atoms.")
         raise typer.Exit(code=1)
 
-    mlip = detect_mlip()
-    typer.echo(f"🧠 Detected MLIP: {mlip}")
+    # Detect or use specified model
+    if mlip == "auto":
+        mlip = detect_mlip()
+        typer.echo(f"🧠 Auto-detected MLIP: {mlip}")
+    else:
+        typer.echo(f"🧠 Using MLIP: {mlip}")
+
+    if mlip.startswith("uma-"):
+        typer.echo(f"   UMA task: {uma_task}")
 
     base_dir = initial.resolve().parent
     output_dir = base_dir  
@@ -65,6 +85,7 @@ def neb(
         interp_steps=interp_steps,
         fmax=fmax,
         mlip=mlip,
+        uma_task=uma_task,
         output_dir=output_dir
     )
 

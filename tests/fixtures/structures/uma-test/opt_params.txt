@@ -1,0 +1,9 @@
+Geometry Optimization Parameters
+=================================
+MLIP model:        uma-s-1p1
+Structure:         fragment_initial.vasp
+Optimizer:         BFGS
+fmax (eV/Å):       0.02
+Max steps:         300
+Converged:         True
+Output dir:        /Users/juar/github/work/mlip_platform/tests/fixtures/structures/uma-test
