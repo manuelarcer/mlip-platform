@@ -2,36 +2,9 @@ import typer
 from pathlib import Path
 from ase.io import read
 from mlip_platform.core.optimize import run_optimization, OPTIMIZER_MAP
-
-try:
-    from mace.calculators import mace_mp
-except ImportError:
-    mace_mp = None
-
-try:
-    from sevenn.calculator import SevenNetCalculator
-except ImportError:
-    SevenNetCalculator = None
-
-try:
-    from fairchem.core import pretrained_mlip, FAIRChemCalculator
-    fairchem_available = True
-except ImportError:
-    fairchem_available = False
+from mlip_platform.cli.utils import detect_mlip, validate_mlip, setup_calculator
 
 app = typer.Typer(help="Run geometry optimization on structures.")
-
-
-def detect_mlip():
-    """Detect available MLIP model in order of preference: UMA > SevenNet > MACE"""
-    if fairchem_available:
-        return "uma-s-1p1"
-    elif SevenNetCalculator:
-        return "7net-mf-ompa"
-    elif mace_mp:
-        return "mace"
-    else:
-        raise typer.Exit("❌ No supported MLIP model found (UMA, SevenNet, or MACE).")
 
 
 @app.command()
@@ -61,15 +34,7 @@ def run(
         mlip = detect_mlip()
         typer.echo(f"🧠 Auto-detected MLIP: {mlip}")
     else:
-        # Validate user-provided MLIP
-        if mlip == "mace" and not mace_mp:
-            raise typer.Exit("❌ MACE not available. Install with: pip install mace-torch")
-        elif mlip == "7net-mf-ompa" and not SevenNetCalculator:
-            raise typer.Exit("❌ SevenNet not available. Install with: pip install sevenn")
-        elif mlip.startswith("uma-") and not fairchem_available:
-            raise typer.Exit("❌ UMA not available. Install with: pip install fairchem-core")
-        elif not (mlip in ["mace", "7net-mf-ompa"] or mlip.startswith("uma-")):
-            raise typer.Exit(f"❌ Unknown MLIP: {mlip}. Use 'uma-s-1p1', 'mace', or '7net-mf-ompa'.")
+        validate_mlip(mlip)
         typer.echo(f"🧠 Using MLIP: {mlip}")
 
     # Validate optimizer
@@ -79,16 +44,10 @@ def run(
         raise typer.Exit(1)
 
     # Assign calculator
-    if mlip == "mace":
-        typer.echo("⚙️  Attaching MACE calculator...")
-        atoms.calc = mace_mp(model="medium", device="cpu")
-    elif mlip == "7net-mf-ompa":
-        typer.echo("⚙️  Attaching SevenNet calculator...")
-        atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
-    elif mlip.startswith("uma-"):
-        typer.echo(f"⚙️  Attaching UMA calculator ({mlip}, task={uma_task})...")
-        predictor = pretrained_mlip.get_predict_unit(mlip, device="cpu")
-        atoms.calc = FAIRChemCalculator(predictor, task_name=uma_task)
+    typer.echo(f"⚙️  Attaching {mlip} calculator...")
+    if mlip.startswith("uma-"):
+        typer.echo(f"   UMA task: {uma_task}")
+    atoms = setup_calculator(atoms, mlip, uma_task)
 
     # Output directory
     output_dir = structure.parent

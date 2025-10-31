@@ -2,37 +2,9 @@ from pathlib import Path
 import typer
 from ase.io import read
 from mlip_platform.core.neb import CustomNEB
-
-try:
-    from fairchem.core import pretrained_mlip, FAIRChemCalculator
-    fairchem_available = True
-except ImportError:
-    fairchem_available = False
-
-try:
-    from sevenn.calculator import SevenNetCalculator
-    sevenn_available = True
-except ImportError:
-    sevenn_available = False
-
-try:
-    from mace.calculators import mace_mp
-    mace_available = True
-except ImportError:
-    mace_available = False
+from mlip_platform.cli.utils import detect_mlip, validate_mlip
 
 app = typer.Typer()
-
-def detect_mlip() -> str:
-    """Detect available MLIP model in order of preference: UMA > SevenNet > MACE"""
-    if fairchem_available:
-        return "uma-s-1p1"
-    elif sevenn_available:
-        return "7net-mf-ompa"
-    elif mace_available:
-        return "mace"
-    else:
-        raise typer.Exit("❌ No supported MLIP found. Please install UMA (fairchem-core), SevenNet, or MACE.")
 
 @app.command()
 def neb(
@@ -57,15 +29,7 @@ def neb(
         mlip = detect_mlip()
         typer.echo(f"🧠 Auto-detected MLIP: {mlip}")
     else:
-        # Validate user-provided MLIP
-        if mlip == "mace" and not mace_available:
-            raise typer.Exit("❌ MACE not available. Install with: pip install mace-torch")
-        elif mlip == "7net-mf-ompa" and not sevenn_available:
-            raise typer.Exit("❌ SevenNet not available. Install with: pip install sevenn")
-        elif mlip.startswith("uma-") and not fairchem_available:
-            raise typer.Exit("❌ UMA not available. Install with: pip install fairchem-core")
-        elif not (mlip in ["mace", "7net-mf-ompa"] or mlip.startswith("uma-")):
-            raise typer.Exit(f"❌ Unknown MLIP: {mlip}. Use 'uma-s-1p1', 'uma-m-1p1', 'mace', or '7net-mf-ompa'.")
+        validate_mlip(mlip)
         typer.echo(f"🧠 Using MLIP: {mlip}")
 
     if mlip.startswith("uma-"):

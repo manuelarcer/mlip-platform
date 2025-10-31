@@ -2,35 +2,9 @@ import typer
 from pathlib import Path
 from ase.io import read
 from mlip_platform.core.md import run_md
-
-try:
-    from mace.calculators import mace_mp
-except ImportError:
-    mace_mp = None
-
-try:
-    from sevenn.calculator import SevenNetCalculator
-except ImportError:
-    SevenNetCalculator = None
-
-try:
-    from fairchem.core import pretrained_mlip, FAIRChemCalculator
-    fairchem_available = True
-except ImportError:
-    fairchem_available = False
+from mlip_platform.cli.utils import detect_mlip, validate_mlip, setup_calculator
 
 app = typer.Typer(help="Run molecular dynamics simulations.")
-
-def detect_model():
-    """Detect available MLIP model in order of preference: UMA > SevenNet > MACE"""
-    if fairchem_available:
-        return "uma-s-1p1"
-    elif SevenNetCalculator:
-        return "7net-mf-ompa"
-    elif mace_mp:
-        return "mace"
-    else:
-        raise typer.Exit("❌ No supported MLIP model found (UMA, SevenNet, or MACE).")
 
 @app.command()
 def run(
@@ -46,25 +20,20 @@ def run(
 
     # Detect or use specified model
     if mlip == "auto":
-        model = detect_model()
-        typer.echo(f"🧠 Auto-detected MLIP: {model}")
+        mlip = detect_mlip()
+        typer.echo(f"🧠 Auto-detected MLIP: {mlip}")
     else:
-        model = mlip
-        typer.echo(f"🧠 Using MLIP: {model}")
+        validate_mlip(mlip)
+        typer.echo(f"🧠 Using MLIP: {mlip}")
+
+    if mlip.startswith("uma-"):
+        typer.echo(f"   UMA task: {uma_task}")
 
     typer.echo(f"Running MD for {steps} steps at {temperature} K, timestep {timestep} fs")
 
     # Assign calculator
-    if model == "mace":
-        typer.echo("Using MACE calculator.")
-        atoms.calc = mace_mp(model="medium", device="cpu")
-    elif model == "7net-mf-ompa":
-        typer.echo("Using SevenNet calculator.")
-        atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
-    elif model.startswith("uma-"):
-        typer.echo(f"Using UMA calculator ({model}, task={uma_task}).")
-        predictor = pretrained_mlip.get_predict_unit(model, device="cpu")
-        atoms.calc = FAIRChemCalculator(predictor, task_name=uma_task)
+    typer.echo(f"⚙️  Attaching {mlip} calculator...")
+    atoms = setup_calculator(atoms, mlip, uma_task)
 
     output_dir = structure.parent
 
@@ -75,7 +44,7 @@ def run(
         steps=steps,
         interval=1,
         output_dir=output_dir,
-        model_name=model
+        model_name=mlip
     )
 
     # Save parameters
@@ -83,7 +52,9 @@ def run(
     with open(param_file, "w") as f:
         f.write("MD Run Parameters\n")
         f.write("===================\n")
-        f.write(f"MLIP model:        {model}\n")
+        f.write(f"MLIP model:        {mlip}\n")
+        if mlip.startswith("uma-"):
+            f.write(f"UMA task:          {uma_task}\n")
         f.write(f"Structure:         {structure.name}\n")
         f.write(f"Number of steps:   {steps}\n")
         f.write(f"Temperature (K):   {temperature}\n")
