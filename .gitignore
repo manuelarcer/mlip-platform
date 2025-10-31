@@ -10,6 +10,27 @@ __pycache__/
 # Log and trajectory files
 *.log
 *_md.log
+*.traj
+
+# Output files from simulations
+*_params.txt
+*_parameters.txt
+*_convergence.csv
+*_convergence.png
+*_energy.csv
+*_energy.png
+*_temperature.png
+neb_data.csv
+neb_energy.png
+md_energy.csv
+md_energy.png
+md_temperature.png
+md.traj
+opt.traj
+opt_final.vasp
+
+# NEB output directories (numbered POSCAR folders)
+tests/fixtures/structures/**/[0-9][0-9]/
 
 
 # Packaging and build artifacts
