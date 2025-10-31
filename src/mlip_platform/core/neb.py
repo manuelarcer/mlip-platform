@@ -12,6 +12,31 @@ import numpy as np
 class CustomNEB:
     def __init__(self, initial, final, num_images=9, interp_fmax=0.1, interp_steps=1000,
                  fmax=0.05, mlip='7net-mf-ompa', uma_task='omat', output_dir='.'):
+        """
+        Initialize NEB calculation.
+
+        Parameters
+        ----------
+        initial : ase.Atoms
+            Initial structure
+        final : ase.Atoms
+            Final structure
+        num_images : int
+            Number of INTERMEDIATE images (excluding initial and final)
+            Total images = num_images + 2
+        interp_fmax : float
+            Force threshold for IDPP interpolation
+        interp_steps : int
+            Maximum steps for IDPP interpolation
+        fmax : float
+            Force convergence threshold for NEB optimization
+        mlip : str
+            MLIP model name
+        uma_task : str
+            Task name for UMA models
+        output_dir : str or Path
+            Output directory for results
+        """
         self.initial = initial
         final.set_cell(initial.get_cell(), scale_atoms=True)
         self.final = final
@@ -52,7 +77,9 @@ class CustomNEB:
             raise ValueError(f"Unknown model: {model}")
 
     def setup_neb(self):
-        return [self.initial] + [self.initial.copy() for _ in range(self.num_images - 2)] + [self.final]
+        """Setup NEB image list with initial, intermediate images, and final."""
+        # num_images is the number of INTERMEDIATE images (not including initial/final)
+        return [self.initial] + [self.initial.copy() for _ in range(self.num_images)] + [self.final]
 
     def interpolate_idpp(self):
         traj_path = self.output_dir / 'idpp.traj'

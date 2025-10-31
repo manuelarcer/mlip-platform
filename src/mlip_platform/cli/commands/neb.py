@@ -10,7 +10,7 @@ app = typer.Typer()
 def neb(
     initial: Path = typer.Option(..., prompt=True, help="Initial structure file (.vasp)"),
     final: Path = typer.Option(..., prompt=True, help="Final structure file (.vasp)"),
-    num_images: int = typer.Option(5, help="Number of NEB images"),
+    num_images: int = typer.Option(5, help="Number of intermediate images (excluding initial and final)"),
     interp_fmax: float = typer.Option(0.1, help="IDPP interpolation fmax"),
     interp_steps: int = typer.Option(100, help="IDPP interpolation steps"),
     fmax: float = typer.Option(0.05, help="Final NEB force threshold"),
@@ -38,26 +38,29 @@ def neb(
     base_dir = initial.resolve().parent
     output_dir = base_dir  
 
+    total_images = num_images + 2  # intermediate + initial + final
     typer.echo(f"⚙️ Running NEB with:")
-    typer.echo(f" - num_images:    {num_images}")
-    typer.echo(f" - interp_fmax:   {interp_fmax}")
-    typer.echo(f" - interp_steps:  {interp_steps}")
-    typer.echo(f" - final fmax:    {fmax}")
-    typer.echo(f" - output_dir:    {output_dir}")
+    typer.echo(f" - Intermediate images: {num_images}")
+    typer.echo(f" - Total images:        {total_images} (including initial and final)")
+    typer.echo(f" - interp_fmax:         {interp_fmax}")
+    typer.echo(f" - interp_steps:        {interp_steps}")
+    typer.echo(f" - final fmax:          {fmax}")
+    typer.echo(f" - output_dir:          {output_dir}")
 
     with open(output_dir / "neb_parameters.txt", "w") as f:
         f.write("NEB Run Parameters\n")
         f.write("===================\n")
-        f.write(f"MLIP model:        {mlip}\n")
+        f.write(f"MLIP model:            {mlip}\n")
         if mlip.startswith("uma-"):
-            f.write(f"UMA task:          {uma_task}\n")
-        f.write(f"Initial:           {initial}\n")
-        f.write(f"Final:             {final}\n")
-        f.write(f"Number of images:  {num_images}\n")
-        f.write(f"IDPP fmax:         {interp_fmax}\n")
-        f.write(f"IDPP steps:        {interp_steps}\n")
-        f.write(f"Final fmax:        {fmax}\n")
-        f.write(f"Output dir:        {output_dir}\n")
+            f.write(f"UMA task:              {uma_task}\n")
+        f.write(f"Initial:               {initial}\n")
+        f.write(f"Final:                 {final}\n")
+        f.write(f"Intermediate images:   {num_images}\n")
+        f.write(f"Total images:          {total_images}\n")
+        f.write(f"IDPP fmax:             {interp_fmax}\n")
+        f.write(f"IDPP steps:            {interp_steps}\n")
+        f.write(f"Final fmax:            {fmax}\n")
+        f.write(f"Output dir:            {output_dir}\n")
 
     neb = CustomNEB(
         initial=atoms_initial,
@@ -87,7 +90,7 @@ def neb(
     typer.echo("✅ NEB complete. Output written to:")
     for file in ["A2B.traj", "A2B_full.traj", "idpp.traj", "idpp.log", "neb_data.csv", "neb_energy.png", "neb_parameters.txt"]:
         typer.echo(f" - {output_dir / file}")
-    for i in range(num_images):
+    for i in range(total_images):
         typer.echo(f" - {output_dir / f'{i:02d}' / 'POSCAR'}")
 
 if __name__ == "__main__":
