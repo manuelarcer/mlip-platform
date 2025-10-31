@@ -9,9 +9,9 @@ app = typer.Typer(help="Run molecular dynamics simulations.")
 @app.command()
 def run(
     structure: Path = typer.Option(..., prompt=True, help="Structure file (.vasp)"),
-    steps: int = typer.Option(100, prompt=True, help="Number of MD steps"),
-    temperature: float = typer.Option(298, prompt=True, help="Temperature in K"),
-    timestep: float = typer.Option(2.0, prompt=True, help="Timestep in fs"),
+    steps: int = typer.Option(100, help="Number of MD steps"),
+    temperature: float = typer.Option(298, help="Temperature in K"),
+    timestep: float = typer.Option(2.0, help="Timestep in fs"),
     mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
     uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)")
 ):

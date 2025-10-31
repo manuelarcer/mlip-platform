@@ -10,10 +10,10 @@ app = typer.Typer()
 def neb(
     initial: Path = typer.Option(..., prompt=True, help="Initial structure file (.vasp)"),
     final: Path = typer.Option(..., prompt=True, help="Final structure file (.vasp)"),
-    num_images: int = typer.Option(5, prompt="Number of NEB images"),
-    interp_fmax: float = typer.Option(0.1, prompt="IDPP interpolation fmax"),
-    interp_steps: int = typer.Option(100, prompt="IDPP interpolation steps"),
-    fmax: float = typer.Option(0.05, prompt="Final NEB force threshold"),
+    num_images: int = typer.Option(5, help="Number of NEB images"),
+    interp_fmax: float = typer.Option(0.1, help="IDPP interpolation fmax"),
+    interp_steps: int = typer.Option(100, help="IDPP interpolation steps"),
+    fmax: float = typer.Option(0.05, help="Final NEB force threshold"),
     mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
     uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)")
 ):
