@@ -1,28 +1,44 @@
 """Shared utilities for CLI commands."""
 import typer
 
-# Import MLIPs with availability tracking
-try:
-    from fairchem.core import pretrained_mlip, FAIRChemCalculator
-    FAIRCHEM_AVAILABLE = True
-except ImportError:
-    pretrained_mlip = None
-    FAIRChemCalculator = None
-    FAIRCHEM_AVAILABLE = False
+# Lazy import: Check availability without importing heavy modules
+def _check_fairchem():
+    """Check if fairchem-core is available without importing it."""
+    try:
+        from importlib.metadata import distribution
+        distribution('fairchem-core')
+        return True
+    except Exception:
+        return False
 
-try:
-    from sevenn.calculator import SevenNetCalculator
-    SEVENN_AVAILABLE = True
-except ImportError:
-    SevenNetCalculator = None
-    SEVENN_AVAILABLE = False
+def _check_sevenn():
+    """Check if sevenn is available without importing it."""
+    try:
+        from importlib.metadata import distribution
+        distribution('sevenn')
+        return True
+    except Exception:
+        return False
 
-try:
-    from mace.calculators import mace_mp
-    MACE_AVAILABLE = True
-except ImportError:
-    mace_mp = None
-    MACE_AVAILABLE = False
+def _check_mace():
+    """Check if mace is available without importing it."""
+    try:
+        from importlib.metadata import distribution
+        distribution('mace-torch')
+        return True
+    except Exception:
+        return False
+
+# Check availability (lightweight, no actual imports)
+FAIRCHEM_AVAILABLE = _check_fairchem()
+SEVENN_AVAILABLE = _check_sevenn()
+MACE_AVAILABLE = _check_mace()
+
+# Lazy-loaded module references (loaded only when needed)
+_pretrained_mlip = None
+_FAIRChemCalculator = None
+_SevenNetCalculator = None
+_mace_mp = None
 
 
 def detect_mlip() -> str:
@@ -99,12 +115,30 @@ def setup_calculator(atoms, mlip: str, uma_task: str = "omat"):
     ase.Atoms
         Atoms object with calculator attached
     """
+    global _mace_mp, _SevenNetCalculator, _pretrained_mlip, _FAIRChemCalculator
+
     if mlip == "mace":
-        atoms.calc = mace_mp(model="medium", device="cpu")
+        # Lazy import MACE only when needed
+        if _mace_mp is None:
+            from mace.calculators import mace_mp as _mace_mp_import
+            _mace_mp = _mace_mp_import
+        atoms.calc = _mace_mp(model="medium", device="cpu")
+
     elif mlip == "7net-mf-ompa":
-        atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
+        # Lazy import SevenNet only when needed
+        if _SevenNetCalculator is None:
+            from sevenn.calculator import SevenNetCalculator as _SevenNetCalculator_import
+            _SevenNetCalculator = _SevenNetCalculator_import
+        atoms.calc = _SevenNetCalculator("7net-mf-ompa", modal="mpa")
+
     elif mlip.startswith("uma-"):
-        predictor = pretrained_mlip.get_predict_unit(mlip, device="cpu")
-        atoms.calc = FAIRChemCalculator(predictor, task_name=uma_task)
+        # Lazy import UMA only when needed
+        if _pretrained_mlip is None or _FAIRChemCalculator is None:
+            from fairchem.core import pretrained_mlip as _pretrained_mlip_import
+            from fairchem.core import FAIRChemCalculator as _FAIRChemCalculator_import
+            _pretrained_mlip = _pretrained_mlip_import
+            _FAIRChemCalculator = _FAIRChemCalculator_import
+        predictor = _pretrained_mlip.get_predict_unit(mlip, device="cpu")
+        atoms.calc = _FAIRChemCalculator(predictor, task_name=uma_task)
 
     return atoms
