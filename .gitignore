@@ -20,11 +20,15 @@ __pycache__/
 *_energy.csv
 *_energy.png
 *_temperature.png
+*_pressure.png
+*_volume.png
 neb_data.csv
 neb_energy.png
 md_energy.csv
 md_energy.png
 md_temperature.png
+md_pressure.png
+md_volume.png
 md.traj
 opt.traj
 opt_final.vasp
