@@ -28,7 +28,7 @@ def test_neb_run_sevenn():
         mlip="7net-mf-ompa"
     )
 
-    assert len(neb.images) == 5
+    assert len(neb.images) == 7  # num_images=5 means 5 intermediate + 1 initial + 1 final = 7 total
 
     neb.interpolate_idpp()
 

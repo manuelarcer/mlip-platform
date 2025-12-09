@@ -77,9 +77,31 @@ class CustomNEB:
             raise ValueError(f"Unknown model: {model}")
 
     def setup_neb(self):
-        """Setup NEB image list with initial, intermediate images, and final."""
+        """Setup NEB image list with linear interpolation (respecting MIC)."""
         # num_images is the number of INTERMEDIATE images (not including initial/final)
-        return [self.initial] + [self.initial.copy() for _ in range(self.num_images)] + [self.final]
+        from ase.geometry import find_mic
+
+        images = [self.initial]
+
+        # Linear interpolation with minimum image convention (MIC)
+        for i in range(1, self.num_images + 1):
+            fraction = i / (self.num_images + 1)
+            image = self.initial.copy()
+
+            # Get positions
+            pos_init = self.initial.get_positions()
+            pos_final = self.final.get_positions()
+
+            # Calculate displacement with MIC
+            displacement, _ = find_mic(pos_final - pos_init, self.initial.get_cell(),
+                                       pbc=self.initial.get_pbc())
+
+            # Linear interpolation
+            image.set_positions(pos_init + fraction * displacement)
+            images.append(image)
+
+        images.append(self.final)
+        return images
 
     def interpolate_idpp(self):
         traj_path = self.output_dir / 'idpp.traj'
