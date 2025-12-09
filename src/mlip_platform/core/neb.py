@@ -77,37 +77,47 @@ class CustomNEB:
             raise ValueError(f"Unknown model: {model}")
 
     def setup_neb(self):
-        """Setup NEB image list with linear interpolation (respecting MIC)."""
+        """Setup NEB image list."""
         # num_images is the number of INTERMEDIATE images (not including initial/final)
-        from ase.geometry import find_mic
+        from ase.constraints import FixAtoms
 
         images = [self.initial]
+        images += [self.initial.copy() for _ in range(self.num_images)]
+        images += [self.final]
 
-        # Linear interpolation with minimum image convention (MIC)
-        for i in range(1, self.num_images + 1):
-            fraction = i / (self.num_images + 1)
-            image = self.initial.copy()
+        # Store FixAtoms constraint from initial (to restore after IDPP)
+        self._fix_atoms_constraint = None
+        for constraint in self.initial.constraints:
+            if isinstance(constraint, FixAtoms):
+                self._fix_atoms_constraint = constraint
+                break
 
-            # Get positions
-            pos_init = self.initial.get_positions()
-            pos_final = self.final.get_positions()
+        # Remove FixAtoms from intermediate images to allow interpolation
+        # Keep all other constraints (Hookean, etc.)
+        for img in images[1:-1]:
+            non_fix_constraints = [c for c in img.constraints if not isinstance(c, FixAtoms)]
+            img.set_constraint(non_fix_constraints)
 
-            # Calculate displacement with MIC
-            displacement, _ = find_mic(pos_final - pos_init, self.initial.get_cell(),
-                                       pbc=self.initial.get_pbc())
+        # Use ASE's built-in interpolate method (handles MIC automatically)
+        neb_temp = NEB(images)
+        neb_temp.interpolate(method='linear', mic=True)
 
-            # Linear interpolation
-            image.set_positions(pos_init + fraction * displacement)
-            images.append(image)
-
-        images.append(self.final)
         return images
 
     def interpolate_idpp(self):
+        """Run IDPP interpolation and restore FixAtoms constraints after."""
         traj_path = self.output_dir / 'idpp.traj'
         log_path = self.output_dir / 'idpp.log'
         idpp_interpolate(self.images, traj=str(traj_path), log=str(log_path),
                          fmax=self.interp_fmax, mic=True, steps=self.interp_steps)
+
+        # Restore FixAtoms constraints to intermediate images after IDPP
+        if self._fix_atoms_constraint is not None:
+            for img in self.images[1:-1]:  # Skip initial and final
+                # Add FixAtoms back to existing constraints
+                current_constraints = list(img.constraints)
+                current_constraints.append(self._fix_atoms_constraint)
+                img.set_constraint(current_constraints)
 
     def run_neb(self, optimizer=MDMin, trajectory='A2B.traj', full_traj='A2B_full.traj', climb=False):
         neb = NEB(self.images, climb=climb)
