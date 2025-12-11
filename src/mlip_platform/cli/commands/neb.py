@@ -15,7 +15,8 @@ def neb(
     interp_steps: int = typer.Option(100, help="IDPP interpolation steps"),
     fmax: float = typer.Option(0.05, help="Final NEB force threshold"),
     mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
-    uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)")
+    uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
+    relax_atoms: str = typer.Option(None, help="Comma-separated list of atom indices to relax (e.g. '0,1,5'). If set, others are fixed.")
 ):
     atoms_initial = read(initial, format="vasp")
     atoms_final = read(final, format="vasp")
@@ -37,6 +38,22 @@ def neb(
 
     base_dir = initial.resolve().parent
     output_dir = base_dir  
+
+    relax_indices = None
+    if relax_atoms:
+        try:
+            relax_indices = [int(i.strip()) for i in relax_atoms.split(",")]
+            # Validate indices are within range
+            num_atoms = len(atoms_initial)
+            invalid_indices = [i for i in relax_indices if i < 0 or i >= num_atoms]
+            if invalid_indices:
+                typer.echo(f"❌ Error: Invalid atom indices {invalid_indices}. Must be between 0 and {num_atoms-1}.")
+                raise typer.Exit(code=1)
+            typer.echo(f"🔒 HIGHLY CONSTRAINED MODE: Relaxing only atoms: {relax_indices}")
+        except ValueError:
+            typer.echo("❌ Error: --relax-atoms must be a comma-separated list of integers.")
+            raise typer.Exit(code=1)
+
 
     total_images = num_images + 2  # intermediate + initial + final
     typer.echo(f"⚙️ Running NEB with:")
@@ -61,6 +78,9 @@ def neb(
         f.write(f"IDPP steps:            {interp_steps}\n")
         f.write(f"Final fmax:            {fmax}\n")
         f.write(f"Output dir:            {output_dir}\n")
+        if relax_indices:
+            f.write(f"Relax atoms:           {relax_indices}\n")
+
 
     neb = CustomNEB(
         initial=atoms_initial,
@@ -71,7 +91,8 @@ def neb(
         fmax=fmax,
         mlip=mlip,
         uma_task=uma_task,
-        output_dir=output_dir
+        output_dir=output_dir,
+        relax_atoms=relax_indices
     )
 
     typer.echo(" Interpolating with IDPP...")

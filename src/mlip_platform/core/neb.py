@@ -11,7 +11,7 @@ import numpy as np
 
 class CustomNEB:
     def __init__(self, initial, final, num_images=9, interp_fmax=0.1, interp_steps=1000,
-                 fmax=0.05, mlip='7net-mf-ompa', uma_task='omat', output_dir='.'):
+                 fmax=0.05, mlip='7net-mf-ompa', uma_task='omat', output_dir='.', relax_atoms=None):
         """
         Initialize NEB calculation.
 
@@ -36,6 +36,9 @@ class CustomNEB:
             Task name for UMA models
         output_dir : str or Path
             Output directory for results
+        relax_atoms : list of int, optional
+            List of atom indices to relax. If provided, all other atoms are fixed
+            at their linearly interpolated positions. IDPP is skipped.
         """
         self.initial = initial
         final.set_cell(initial.get_cell(), scale_atoms=True)
@@ -48,6 +51,7 @@ class CustomNEB:
         self.uma_task = uma_task
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.relax_atoms = relax_atoms
         self.images = self.setup_neb()
 
     def setup_calculator(self, model=None, uma_task=None):
@@ -102,10 +106,26 @@ class CustomNEB:
         neb_temp = NEB(images)
         neb_temp.interpolate(method='linear', mic=True)
 
+        # If relax_atoms is specified, we want "linear interpolation" + "fixed atoms"
+        # Since we just did linear interpolation above, now we fix the NON-relaxed atoms.
+        if self.relax_atoms is not None:
+             fix_indices = [i for i in range(len(self.initial)) if i not in self.relax_atoms]
+             constraint = FixAtoms(indices=fix_indices)
+             for img in images[1:-1]:
+                 # We likely want to add to existing constraints (Hookean etc), but we removed FixAtoms earlier.
+                 # So we append this new FixAtoms constraint.
+                 current_constraints = list(img.constraints)
+                 current_constraints.append(constraint)
+                 img.set_constraint(current_constraints)
+
         return images
 
     def interpolate_idpp(self):
         """Run IDPP interpolation and restore FixAtoms constraints after."""
+        if self.relax_atoms is not None:
+            print("Skipping IDPP interpolation because relax_atoms is specified (highly-constraint mode).")
+            return
+
         traj_path = self.output_dir / 'idpp.traj'
         log_path = self.output_dir / 'idpp.log'
         idpp_interpolate(self.images, traj=str(traj_path), log=str(log_path),
