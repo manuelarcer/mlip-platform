@@ -85,12 +85,15 @@ def run(
 
     # Print output summary
     typer.echo("\n✅ Optimization complete. Output files:")
+
+    # Extract prefix from logfile for convergence filenames
+    logfile_stem = Path(logfile).stem
     output_files = [
         trajectory,
         logfile,
-        "opt_convergence.csv",
-        "opt_convergence.png",
-        "opt_final.vasp",
+        f"{logfile_stem}_convergence.csv",
+        f"{logfile_stem}_convergence.png",
+        f"{logfile_stem}_final.vasp",
         "opt_params.txt"
     ]
     for file in output_files:

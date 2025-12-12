@@ -62,9 +62,12 @@ def run_optimization(
 
     traj_file = output_path / trajectory
     log_file = output_path / logfile
-    csv_file = output_path / "opt_convergence.csv"
-    convergence_plot = output_path / "opt_convergence.png"
-    final_structure = output_path / "opt_final.vasp"
+
+    # Extract prefix from logfile for convergence files
+    logfile_stem = Path(logfile).stem
+    csv_file = output_path / f"{logfile_stem}_convergence.csv"
+    convergence_plot = output_path / f"{logfile_stem}_convergence.png"
+    final_structure = output_path / f"{logfile_stem}_final.vasp"
 
     # Select optimizer
     optimizer_name = optimizer.lower()
