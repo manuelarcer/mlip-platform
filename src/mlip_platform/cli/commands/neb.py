@@ -37,8 +37,7 @@ def neb(
     if mlip.startswith("uma-"):
         typer.echo(f"   UMA task: {uma_task}")
 
-    base_dir = initial.resolve().parent
-    output_dir = base_dir  
+    output_dir = initial.parent  
 
     relax_indices = None
     if relax_atoms:
