@@ -11,7 +11,8 @@ import numpy as np
 
 class CustomNEB:
     def __init__(self, initial, final, num_images=9, interp_fmax=0.1, interp_steps=1000,
-                 fmax=0.05, mlip='7net-mf-ompa', uma_task='omat', output_dir='.', relax_atoms=None):
+                 fmax=0.05, mlip='7net-mf-ompa', uma_task='omat', output_dir='.', relax_atoms=None,
+                 logfile='neb.log'):
         """
         Initialize NEB calculation.
 
@@ -39,6 +40,8 @@ class CustomNEB:
         relax_atoms : list of int, optional
             List of atom indices to relax. If provided, all other atoms are fixed
             at their linearly interpolated positions. IDPP is skipped.
+        logfile : str
+            Name of the log file for NEB iteration logging (default: 'neb.log')
         """
         self.initial = initial
         final.set_cell(initial.get_cell(), scale_atoms=True)
@@ -52,6 +55,7 @@ class CustomNEB:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.relax_atoms = relax_atoms
+        self.logfile = logfile
         self.images = self.setup_neb()
 
     def setup_calculator(self, model=None, uma_task=None):
@@ -147,15 +151,55 @@ class CustomNEB:
         full_traj_path = self.output_dir / full_traj
         traj_writer = Trajectory(str(full_traj_path), 'w')
 
-        def log_images():
+        # Setup log file
+        log_path = self.output_dir / self.logfile
+        log_file = open(log_path, 'w')
+
+        # Data collection for convergence tracking
+        log_data = {
+            "step": [],
+            "fmax(eV/A)": [],
+            "max_energy(eV)": [],
+        }
+
+        def log_iteration():
+            """Callback to log each NEB iteration"""
+            step = opt.nsteps
+            # Calculate forces for all images
+            forces = [img.get_forces() for img in neb.images]
+            fmax = max([(f**2).sum(axis=1).max()**0.5 for f in forces])
+
+            # Get energies
+            energies = [img.get_potential_energy() for img in neb.images]
+            max_energy = max(energies)
+
+            # Write to log file
+            log_file.write(f"Step {step:4d}  Fmax: {fmax:.6f} eV/A  Max Energy: {max_energy:.6f} eV\n")
+            log_file.flush()
+
+            # Store data
+            log_data["step"].append(step)
+            log_data["fmax(eV/A)"].append(fmax)
+            log_data["max_energy(eV)"].append(max_energy)
+
+            # Write trajectory
             for img in neb.images:
-                img.get_potential_energy()
                 traj_writer.write(img)
 
-        opt = optimizer(neb)
-        opt.attach(log_images)
+        opt = optimizer(neb, logfile=log_file)
+        opt.attach(log_iteration, interval=1)
         opt.run(fmax=self.fmax)
+
+        log_file.close()
         traj_writer.close()
+
+        # Save convergence data to CSV
+        csv_path = self.output_dir / 'neb_convergence.csv'
+        df_conv = pd.DataFrame(log_data)
+        df_conv.to_csv(csv_path, index=False)
+
+        # Plot convergence
+        self._plot_convergence(df_conv)
 
         for image in self.images:
             image.get_potential_energy()
@@ -166,6 +210,33 @@ class CustomNEB:
                 traj.write(img)
 
         return self.images
+
+    def _plot_convergence(self, df):
+        """Plot NEB convergence (force and max energy vs steps)"""
+        fig_path = self.output_dir / "neb_convergence.png"
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
+
+        # Force convergence
+        ax1.plot(df["step"], df["fmax(eV/A)"], marker='o', markersize=4, linewidth=1.5, color='orange')
+        ax1.axhline(y=self.fmax, color='r', linestyle='--', label=f'fmax target = {self.fmax}')
+        ax1.set_xlabel("NEB Step")
+        ax1.set_ylabel("Max Force (eV/Å)")
+        ax1.set_title("NEB Force Convergence")
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        ax1.set_yscale('log')
+
+        # Max energy evolution
+        ax2.plot(df["step"], df["max_energy(eV)"], marker='o', markersize=4, linewidth=1.5)
+        ax2.set_xlabel("NEB Step")
+        ax2.set_ylabel("Max Energy (eV)")
+        ax2.set_title("Barrier Height Evolution")
+        ax2.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        plt.savefig(fig_path, dpi=150)
+        plt.close()
 
     def process_results(self):
         results = {'i': [], 'e': []}

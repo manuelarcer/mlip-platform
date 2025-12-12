@@ -16,7 +16,8 @@ def neb(
     fmax: float = typer.Option(0.05, help="Final NEB force threshold"),
     mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
     uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
-    relax_atoms: str = typer.Option(None, help="Comma-separated list of atom indices to relax (e.g. '0,1,5'). If set, others are fixed.")
+    relax_atoms: str = typer.Option(None, help="Comma-separated list of atom indices to relax (e.g. '0,1,5'). If set, others are fixed."),
+    log: str = typer.Option("neb.log", help="Name for the NEB iteration log file (default: neb.log)")
 ):
     atoms_initial = read(initial, format="vasp")
     atoms_final = read(final, format="vasp")
@@ -77,6 +78,7 @@ def neb(
         f.write(f"IDPP fmax:             {interp_fmax}\n")
         f.write(f"IDPP steps:            {interp_steps}\n")
         f.write(f"Final fmax:            {fmax}\n")
+        f.write(f"Log file:              {log}\n")
         f.write(f"Output dir:            {output_dir}\n")
         if relax_indices:
             f.write(f"Relax atoms:           {relax_indices}\n")
@@ -92,7 +94,8 @@ def neb(
         mlip=mlip,
         uma_task=uma_task,
         output_dir=output_dir,
-        relax_atoms=relax_indices
+        relax_atoms=relax_indices,
+        logfile=log
     )
 
     typer.echo(" Interpolating with IDPP...")
@@ -109,7 +112,7 @@ def neb(
     neb.export_poscars()
 
     typer.echo("✅ NEB complete. Output written to:")
-    for file in ["A2B.traj", "A2B_full.traj", "idpp.traj", "idpp.log", "neb_data.csv", "neb_energy.png", "neb_parameters.txt"]:
+    for file in [log, "neb_convergence.csv", "neb_convergence.png", "A2B.traj", "A2B_full.traj", "idpp.traj", "idpp.log", "neb_data.csv", "neb_energy.png", "neb_parameters.txt"]:
         typer.echo(f" - {output_dir / file}")
     for i in range(total_images):
         typer.echo(f" - {output_dir / f'{i:02d}' / 'POSCAR'}")
