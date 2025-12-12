@@ -165,9 +165,11 @@ class CustomNEB:
         def log_iteration():
             """Callback to log each NEB iteration"""
             step = opt.nsteps
-            # Calculate forces for all images
-            forces = [img.get_forces() for img in neb.images]
-            fmax = max([(f**2).sum(axis=1).max()**0.5 for f in forces])
+            # Get the NEB forces (this includes spring forces and is what the optimizer sees)
+            # We need to get the forces from the NEB object's get_forces() method
+            neb_forces = neb.get_forces()
+            # Calculate fmax from the NEB forces (not individual image forces)
+            fmax = (neb_forces**2).sum(axis=1).max()**0.5
 
             # Get energies
             energies = [img.get_potential_energy() for img in neb.images]
