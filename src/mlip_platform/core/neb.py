@@ -159,7 +159,7 @@ class CustomNEB:
         log_data = {
             "step": [],
             "fmax(eV/A)": [],
-            "max_energy(eV)": [],
+            "barrier(eV)": [],
         }
 
         def log_iteration():
@@ -173,16 +173,18 @@ class CustomNEB:
 
             # Get energies
             energies = [img.get_potential_energy() for img in neb.images]
+            initial_energy = energies[0]
             max_energy = max(energies)
+            barrier_height = max_energy - initial_energy
 
             # Write to log file
-            log_file.write(f"Step {step:4d}  Fmax: {fmax:.6f} eV/A  Max Energy: {max_energy:.6f} eV\n")
+            log_file.write(f"Step {step:4d}  Fmax: {fmax:.6f} eV/A  Barrier: {barrier_height:.6f} eV\n")
             log_file.flush()
 
             # Store data
             log_data["step"].append(step)
             log_data["fmax(eV/A)"].append(fmax)
-            log_data["max_energy(eV)"].append(max_energy)
+            log_data["barrier(eV)"].append(barrier_height)
 
             # Write trajectory
             for img in neb.images:
@@ -229,10 +231,10 @@ class CustomNEB:
         ax1.grid(True, alpha=0.3)
         ax1.set_yscale('log')
 
-        # Max energy evolution
-        ax2.plot(df["step"], df["max_energy(eV)"], marker='o', markersize=4, linewidth=1.5)
+        # Barrier height evolution
+        ax2.plot(df["step"], df["barrier(eV)"], marker='o', markersize=4, linewidth=1.5)
         ax2.set_xlabel("NEB Step")
-        ax2.set_ylabel("Max Energy (eV)")
+        ax2.set_ylabel("Barrier Height (eV)")
         ax2.set_title("Barrier Height Evolution")
         ax2.grid(True, alpha=0.3)
 
