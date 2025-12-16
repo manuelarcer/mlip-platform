@@ -2,7 +2,8 @@ from pathlib import Path
 from ase.io import write
 from ase.mep import NEB
 from ase.mep.neb import idpp_interpolate
-from ase.optimize import MDMin
+from ase.mep.autoneb import AutoNEB
+from ase.optimize import MDMin, FIRE
 import pandas as pd
 import matplotlib.pyplot as plt
 from ase.io.trajectory import Trajectory
@@ -214,6 +215,108 @@ class CustomNEB:
                 traj.write(img)
 
         return self.images
+
+    def run_autoneb(self, n_simul=4, n_max=9, k=0.1, climb=True,
+                    optimizer=FIRE, space_energy_ratio=0.5,
+                    interpolate_method='idpp', maxsteps=10000, prefix='autoneb'):
+        """
+        Run AutoNEB calculation.
+
+        Parameters
+        ----------
+        n_simul : int
+            Number of parallel relaxations (default: 4)
+        n_max : int
+            Target number of images including endpoints (default: 9)
+        k : float
+            Spring constant (default: 0.1)
+        climb : bool
+            Enable climbing image NEB (default: True)
+        optimizer : ASE optimizer class
+            Optimizer to use (default: FIRE)
+        space_energy_ratio : float
+            Preference for geometric (1.0) vs energy (0.0) gaps when inserting images (default: 0.5)
+        interpolate_method : str
+            Interpolation method: 'linear' or 'idpp' (default: 'idpp')
+        maxsteps : int
+            Maximum number of steps per relaxation (default: 10000)
+        prefix : str
+            Prefix for AutoNEB output files (default: 'autoneb')
+
+        Returns
+        -------
+        None
+            AutoNEB manages files directly. Check output_dir for results.
+
+        Notes
+        -----
+        - AutoNEB uses its own file-based I/O with prefix naming (prefix000.traj, prefix001.traj, etc.)
+        - Custom convergence tracking (CSV/PNG) is not available in AutoNEB mode
+        - Results are stored in AutoNEB_iter/ folder
+        - Highly-constrained mode (relax_atoms) may not be fully compatible with AutoNEB
+        """
+        import os
+
+        if self.relax_atoms is not None:
+            print("⚠️  WARNING: AutoNEB with relax_atoms (highly-constrained mode) may not work as expected.")
+            print("   Consider using standard NEB for constrained calculations.")
+
+        # Change to output directory so AutoNEB writes files there
+        original_cwd = os.getcwd()
+        os.chdir(self.output_dir)
+
+        try:
+            # Create calculator attachment function
+            def attach_calculators(images):
+                """Attach calculators to all images"""
+                for image in images:
+                    image.calc = self.setup_calculator()
+
+            # Prepare initial images (just start and end for AutoNEB)
+            # AutoNEB will dynamically add intermediate images
+            initial_images = [self.initial, self.final]
+
+            # Write initial images to trajectory files
+            from ase.io import write as ase_write
+            for i, img in enumerate(initial_images):
+                ase_write(f"{prefix}{i:03d}.traj", img)
+
+            print(f"\n🤖 Starting AutoNEB calculation")
+            print(f"   n_max: {n_max} images (including endpoints)")
+            print(f"   n_simul: {n_simul} parallel relaxations")
+            print(f"   fmax: {self.fmax} eV/Å")
+            print(f"   climb: {climb}")
+            print(f"   optimizer: {optimizer.__name__}")
+            print(f"   space_energy_ratio: {space_energy_ratio}")
+            print(f"   interpolate_method: {interpolate_method}")
+            print(f"   Output directory: {self.output_dir.resolve()}\n")
+
+            # Create AutoNEB object
+            autoneb = AutoNEB(
+                attach_calculators=attach_calculators,
+                prefix=prefix,
+                n_simul=n_simul,
+                n_max=n_max,
+                fmax=self.fmax,
+                maxsteps=maxsteps,
+                k=k,
+                climb=climb,
+                optimizer=optimizer,
+                space_energy_ratio=space_energy_ratio,
+                interpolate_method=interpolate_method
+            )
+
+            # Run AutoNEB
+            autoneb.run()
+
+            print("\n✅ AutoNEB calculation complete")
+            print(f"   Output files in: {self.output_dir.resolve()}")
+            print(f"   - {prefix}*.traj: Individual image trajectories")
+            print(f"   - AutoNEB_iter/: Iteration history folder")
+
+        finally:
+            # Return to original directory
+            os.chdir(original_cwd)
 
     def _plot_convergence(self, df):
         """Plot NEB convergence (force and max energy vs steps)"""
