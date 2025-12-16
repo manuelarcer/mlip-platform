@@ -12,7 +12,7 @@ def autoneb(
     initial: Path = typer.Option(..., prompt=True, help="Initial structure file (.vasp)"),
     final: Path = typer.Option(..., prompt=True, help="Final structure file (.vasp)"),
     n_max: int = typer.Option(9, help="Maximum number of images (including endpoints)"),
-    n_simul: int = typer.Option(4, help="Number of parallel relaxations"),
+    n_simul: int = typer.Option(1, help="Number of parallel relaxations (requires MPI for n_simul > 1)"),
     fmax: float = typer.Option(0.05, help="Force convergence threshold (eV/Å)"),
     mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
     uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
@@ -72,6 +72,12 @@ def autoneb(
         except ValueError:
             typer.echo("❌ Error: --relax-atoms must be a comma-separated list of integers.")
             raise typer.Exit(code=1)
+
+    # Check MPI requirement for parallel simulations
+    if n_simul > 1:
+        typer.echo("\n⚠️  WARNING: n_simul > 1 requires MPI (parallel execution).")
+        typer.echo("   Running with n_simul > 1 in serial mode will cause errors.")
+        typer.echo("   Use 'mpirun -np N autoneb ...' or set --n-simul 1 for serial mode.\n")
 
     typer.echo(f"\n⚙️ Running AutoNEB with:")
     typer.echo(f"   n_max:              {n_max} (target images including endpoints)")

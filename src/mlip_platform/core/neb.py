@@ -216,7 +216,7 @@ class CustomNEB:
 
         return self.images
 
-    def run_autoneb(self, n_simul=4, n_max=9, k=0.1, climb=True,
+    def run_autoneb(self, n_simul=1, n_max=9, k=0.1, climb=True,
                     optimizer=FIRE, space_energy_ratio=0.5,
                     interpolate_method='idpp', maxsteps=10000, prefix='autoneb'):
         """
@@ -225,7 +225,7 @@ class CustomNEB:
         Parameters
         ----------
         n_simul : int
-            Number of parallel relaxations (default: 4)
+            Number of parallel relaxations (default: 1). Requires MPI for n_simul > 1
         n_max : int
             Target number of images including endpoints (default: 9)
         k : float
