@@ -276,6 +276,12 @@ class CustomNEB:
             # AutoNEB will dynamically add intermediate images
             initial_images = [self.initial, self.final]
 
+            # Attach calculators and calculate energies for initial images
+            # This is required so AutoNEB doesn't crash with NaN energies
+            for img in initial_images:
+                img.calc = self.setup_calculator()
+                img.get_potential_energy()  # Force energy calculation
+
             # Write initial images to trajectory files
             from ase.io import write as ase_write
             for i, img in enumerate(initial_images):
