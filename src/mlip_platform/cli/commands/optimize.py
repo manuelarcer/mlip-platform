@@ -12,7 +12,7 @@ def run(
     structure: Path = typer.Option(..., prompt=True, help="Structure file (.vasp)"),
     mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
     uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
-    optimizer: str = typer.Option("fire", help=f"Optimizer algorithm: {', '.join(OPTIMIZER_MAP.keys())}"),
+    optimizer: str = typer.Option("bfgs", help=f"Optimizer algorithm: {', '.join(OPTIMIZER_MAP.keys())}"),
     fmax: float = typer.Option(0.05, help="Force convergence threshold (eV/Å)"),
     max_steps: int = typer.Option(200, help="Maximum optimization steps"),
     trajectory: str = typer.Option("opt.traj", help="Trajectory filename"),
