@@ -265,6 +265,14 @@ class CustomNEB:
         original_cwd = os.getcwd()
         os.chdir(self.output_dir)
 
+        # Clean up any existing AutoNEB files to avoid conflicts
+        import glob
+        for old_file in glob.glob(f"{prefix}*.traj"):
+            os.remove(old_file)
+        if os.path.exists("AutoNEB_iter"):
+            import shutil
+            shutil.rmtree("AutoNEB_iter")
+
         try:
             # Create calculator attachment function
             def attach_calculators(images):
