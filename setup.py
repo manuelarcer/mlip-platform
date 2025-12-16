@@ -16,6 +16,7 @@ setup(
         'console_scripts': [
             'md = mlip_platform.cli.commands.md:app',
             'neb = mlip_platform.cli.commands.neb:app',
+            'autoneb = mlip_platform.cli.commands.autoneb:app',
             'benchmark = mlip_platform.cli.commands.benchmark:app',
             'optimize = mlip_platform.cli.commands.optimize:app',
         ],
