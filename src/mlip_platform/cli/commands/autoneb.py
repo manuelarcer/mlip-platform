@@ -141,11 +141,42 @@ def autoneb(
 
     # Optimize endpoints if requested
     if optimize_endpoints:
-        neb.optimize_endpoints(
+        endpoint_results = neb.optimize_endpoints(
             endpoint_fmax=endpoint_fmax,
             optimizer=endpoint_optimizer,
             max_steps=endpoint_max_steps
         )
+
+        # Save endpoint optimization results to file
+        with open(output_dir / "endpoint_optimization.txt", "w") as f:
+            f.write("Endpoint Optimization Results\n")
+            f.write("==============================\n\n")
+            f.write("Initial Structure:\n")
+            f.write(f"  Energy before: {endpoint_results['initial']['energy_before']:.6f} eV\n")
+            f.write(f"  Energy after:  {endpoint_results['initial']['energy_after']:.6f} eV\n")
+            f.write(f"  Energy change: {endpoint_results['initial']['energy_change']:.6f} eV\n")
+            f.write(f"  Steps:         {endpoint_results['initial']['steps']}\n")
+            f.write(f"  Converged:     {endpoint_results['initial']['converged']}\n\n")
+            f.write("Final Structure:\n")
+            f.write(f"  Energy before: {endpoint_results['final']['energy_before']:.6f} eV\n")
+            f.write(f"  Energy after:  {endpoint_results['final']['energy_after']:.6f} eV\n")
+            f.write(f"  Energy change: {endpoint_results['final']['energy_change']:.6f} eV\n")
+            f.write(f"  Steps:         {endpoint_results['final']['steps']}\n")
+            f.write(f"  Converged:     {endpoint_results['final']['converged']}\n\n")
+            f.write(f"Reaction energy: {endpoint_results['reaction_energy']:.6f} eV\n\n")
+
+            # Similarity check
+            sim = endpoint_results['similarity']
+            f.write("Similarity Check:\n")
+            f.write(f"  Average displacement: {sim['avg_displacement']:.3f} Å\n")
+            f.write(f"  Max displacement:     {sim['max_displacement']:.3f} Å (atom {sim['max_disp_atom']})\n")
+            f.write(f"  Min displacement:     {sim['min_displacement']:.3f} Å\n")
+            f.write(f"  Energy difference:    {sim['energy_diff']:.6f} eV\n")
+            f.write(f"  Structures similar:   {sim['is_similar']}\n")
+            if sim['warning_reasons']:
+                f.write(f"  Warning reasons:\n")
+                for reason in sim['warning_reasons']:
+                    f.write(f"    - {reason}\n")
 
     # Run AutoNEB
     neb.run_autoneb(

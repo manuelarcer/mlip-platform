@@ -186,7 +186,92 @@ class CustomNEB:
             print("   ⚠️  WARNING: One or both endpoints did not converge!")
             print("      Consider increasing max_steps or endpoint_fmax\n")
 
+        # Check structural similarity between optimized endpoints
+        similarity_check = self._check_endpoint_similarity()
+        results['similarity'] = similarity_check
+
         return results
+
+    def _check_endpoint_similarity(self, displacement_threshold=0.5, energy_threshold=0.01):
+        """
+        Check if initial and final structures are too similar after optimization.
+
+        This helps detect cases where one endpoint relaxed to the other configuration,
+        which would result in a trivial NEB calculation.
+
+        Parameters
+        ----------
+        displacement_threshold : float
+            Threshold in Angstroms for average displacement warning (default: 0.5 Å)
+        energy_threshold : float
+            Threshold in eV for energy difference warning (default: 0.01 eV)
+
+        Returns
+        -------
+        dict
+            Dictionary with displacement statistics and warning flags
+        """
+        from ase.geometry import find_mic
+
+        print("🔍 Checking endpoint similarity...")
+
+        # Calculate displacements with MIC
+        disp = self.final.get_positions() - self.initial.get_positions()
+        mic_disp, mic_dist = find_mic(disp, self.initial.cell, pbc=True)
+
+        # Displacement statistics
+        avg_displacement = mic_dist.mean()
+        max_displacement = mic_dist.max()
+        max_disp_atom = mic_dist.argmax()
+        min_displacement = mic_dist.min()
+
+        # Energy difference
+        energy_diff = abs(self.final.get_potential_energy() - self.initial.get_potential_energy())
+
+        # Print statistics
+        print(f"   Average displacement: {avg_displacement:.3f} Å")
+        print(f"   Max displacement:     {max_displacement:.3f} Å (atom {max_disp_atom})")
+        print(f"   Min displacement:     {min_displacement:.3f} Å")
+        print(f"   Energy difference:    {energy_diff:.6f} eV")
+
+        # Check for warnings
+        is_similar = False
+        warning_reasons = []
+
+        if avg_displacement < displacement_threshold:
+            is_similar = True
+            warning_reasons.append(f"average displacement ({avg_displacement:.3f} Å) < {displacement_threshold} Å")
+
+        if energy_diff < energy_threshold:
+            is_similar = True
+            warning_reasons.append(f"energy difference ({energy_diff:.6f} eV) < {energy_threshold} eV")
+
+        if max_displacement < 1.0:  # If even the max displacement is small
+            is_similar = True
+            warning_reasons.append(f"max displacement ({max_displacement:.3f} Å) < 1.0 Å")
+
+        if is_similar:
+            print(f"\n   ⚠️  WARNING: Initial and final structures appear very similar!")
+            print(f"   This may indicate that one endpoint relaxed to the other configuration.")
+            print(f"   Reasons:")
+            for reason in warning_reasons:
+                print(f"      - {reason}")
+            print(f"\n   Recommendation:")
+            print(f"      - Check if initial and final structures are actually different")
+            print(f"      - Consider using --optimize-endpoints=False if structures are pre-optimized")
+            print(f"      - Verify that you have the correct initial/final configurations\n")
+        else:
+            print(f"   ✓ Endpoints are sufficiently different\n")
+
+        return {
+            'avg_displacement': avg_displacement,
+            'max_displacement': max_displacement,
+            'max_disp_atom': int(max_disp_atom),
+            'min_displacement': min_displacement,
+            'energy_diff': energy_diff,
+            'is_similar': is_similar,
+            'warning_reasons': warning_reasons
+        }
 
     def setup_neb(self):
         """Setup NEB image list."""
