@@ -130,7 +130,10 @@ class CustomNEB:
         opt_initial.run(fmax=endpoint_fmax, steps=max_steps)
 
         initial_energy_after = self.initial.get_potential_energy()
-        initial_converged = opt_initial.converged()
+        # Check convergence: fmax of last step should be <= endpoint_fmax
+        initial_forces = self.initial.get_forces()
+        initial_fmax = (initial_forces**2).sum(axis=1).max()**0.5
+        initial_converged = initial_fmax <= endpoint_fmax
 
         results['initial'] = {
             'converged': initial_converged,
@@ -156,7 +159,10 @@ class CustomNEB:
         opt_final.run(fmax=endpoint_fmax, steps=max_steps)
 
         final_energy_after = self.final.get_potential_energy()
-        final_converged = opt_final.converged()
+        # Check convergence: fmax of last step should be <= endpoint_fmax
+        final_forces = self.final.get_forces()
+        final_fmax = (final_forces**2).sum(axis=1).max()**0.5
+        final_converged = final_fmax <= endpoint_fmax
 
         results['final'] = {
             'converged': final_converged,
