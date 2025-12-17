@@ -85,6 +85,103 @@ class CustomNEB:
         else:
             raise ValueError(f"Unknown model: {model}")
 
+    def optimize_endpoints(self, endpoint_fmax=0.01, optimizer='BFGS', max_steps=200):
+        """
+        Optimize initial and final structures before NEB calculation.
+
+        Parameters
+        ----------
+        endpoint_fmax : float
+            Force convergence threshold for endpoint optimization (default: 0.01 eV/Å)
+        optimizer : str
+            Optimizer to use: 'BFGS', 'LBFGS', 'FIRE' (default: 'BFGS')
+        max_steps : int
+            Maximum optimization steps (default: 200)
+
+        Returns
+        -------
+        dict
+            Dictionary with convergence status and energies
+        """
+        from ase.optimize import BFGS, LBFGS, FIRE
+        from ase.io.trajectory import Trajectory
+
+        optimizer_map = {
+            'bfgs': BFGS,
+            'lbfgs': LBFGS,
+            'fire': FIRE
+        }
+
+        opt_class = optimizer_map.get(optimizer.lower(), BFGS)
+
+        print(f"\n🔧 Optimizing endpoints (fmax={endpoint_fmax} eV/Å, optimizer={optimizer})")
+
+        results = {}
+
+        # Optimize initial structure
+        print("   Optimizing initial structure...")
+        initial_traj = self.output_dir / 'initial_opt.traj'
+        initial_log = self.output_dir / 'initial_opt.log'
+
+        self.initial.calc = self.setup_calculator()
+        initial_energy_before = self.initial.get_potential_energy()
+
+        opt_initial = opt_class(self.initial, trajectory=str(initial_traj), logfile=str(initial_log))
+        opt_initial.run(fmax=endpoint_fmax, steps=max_steps)
+
+        initial_energy_after = self.initial.get_potential_energy()
+        initial_converged = opt_initial.converged()
+
+        results['initial'] = {
+            'converged': initial_converged,
+            'energy_before': initial_energy_before,
+            'energy_after': initial_energy_after,
+            'energy_change': initial_energy_after - initial_energy_before,
+            'steps': opt_initial.nsteps
+        }
+
+        print(f"      ✓ Initial: {initial_energy_before:.6f} → {initial_energy_after:.6f} eV "
+              f"(ΔE = {initial_energy_after - initial_energy_before:.6f} eV, "
+              f"{opt_initial.nsteps} steps, {'converged' if initial_converged else 'NOT converged'})")
+
+        # Optimize final structure
+        print("   Optimizing final structure...")
+        final_traj = self.output_dir / 'final_opt.traj'
+        final_log = self.output_dir / 'final_opt.log'
+
+        self.final.calc = self.setup_calculator()
+        final_energy_before = self.final.get_potential_energy()
+
+        opt_final = opt_class(self.final, trajectory=str(final_traj), logfile=str(final_log))
+        opt_final.run(fmax=endpoint_fmax, steps=max_steps)
+
+        final_energy_after = self.final.get_potential_energy()
+        final_converged = opt_final.converged()
+
+        results['final'] = {
+            'converged': final_converged,
+            'energy_before': final_energy_before,
+            'energy_after': final_energy_after,
+            'energy_change': final_energy_after - final_energy_before,
+            'steps': opt_final.nsteps
+        }
+
+        print(f"      ✓ Final: {final_energy_before:.6f} → {final_energy_after:.6f} eV "
+              f"(ΔE = {final_energy_after - final_energy_before:.6f} eV, "
+              f"{opt_final.nsteps} steps, {'converged' if final_converged else 'NOT converged'})")
+
+        # Update reaction energy
+        reaction_energy = final_energy_after - initial_energy_after
+        print(f"   Reaction energy: {reaction_energy:.6f} eV\n")
+
+        results['reaction_energy'] = reaction_energy
+
+        if not initial_converged or not final_converged:
+            print("   ⚠️  WARNING: One or both endpoints did not converge!")
+            print("      Consider increasing max_steps or endpoint_fmax\n")
+
+        return results
+
     def setup_neb(self):
         """Setup NEB image list."""
         # num_images is the number of INTERMEDIATE images (not including initial/final)

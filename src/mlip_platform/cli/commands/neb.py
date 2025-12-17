@@ -17,7 +17,11 @@ def neb(
     mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
     uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
     relax_atoms: str = typer.Option(None, help="Comma-separated list of atom indices to relax (e.g. '0,1,5'). If set, others are fixed."),
-    log: str = typer.Option("neb.log", help="Name for the NEB iteration log file (default: neb.log)")
+    log: str = typer.Option("neb.log", help="Name for the NEB iteration log file (default: neb.log)"),
+    optimize_endpoints: bool = typer.Option(True, help="Optimize initial and final structures before NEB"),
+    endpoint_fmax: float = typer.Option(0.01, help="Force threshold for endpoint optimization (eV/Å)"),
+    endpoint_optimizer: str = typer.Option("bfgs", help="Optimizer for endpoints: 'bfgs', 'lbfgs', 'fire'"),
+    endpoint_max_steps: int = typer.Option(200, help="Maximum steps for endpoint optimization")
 ):
     atoms_initial = read(initial, format="vasp")
     atoms_final = read(final, format="vasp")
@@ -62,6 +66,10 @@ def neb(
     typer.echo(f" - interp_fmax:         {interp_fmax}")
     typer.echo(f" - interp_steps:        {interp_steps}")
     typer.echo(f" - final fmax:          {fmax}")
+    typer.echo(f" - optimize_endpoints:  {optimize_endpoints}")
+    if optimize_endpoints:
+        typer.echo(f" - endpoint_fmax:       {endpoint_fmax}")
+        typer.echo(f" - endpoint_optimizer:  {endpoint_optimizer}")
     typer.echo(f" - output_dir:          {output_dir}")
 
     with open(output_dir / "neb_parameters.txt", "w") as f:
@@ -77,6 +85,11 @@ def neb(
         f.write(f"IDPP fmax:             {interp_fmax}\n")
         f.write(f"IDPP steps:            {interp_steps}\n")
         f.write(f"Final fmax:            {fmax}\n")
+        f.write(f"Optimize endpoints:    {optimize_endpoints}\n")
+        if optimize_endpoints:
+            f.write(f"Endpoint fmax:         {endpoint_fmax}\n")
+            f.write(f"Endpoint optimizer:    {endpoint_optimizer}\n")
+            f.write(f"Endpoint max steps:    {endpoint_max_steps}\n")
         f.write(f"Log file:              {log}\n")
         f.write(f"Output dir:            {output_dir}\n")
         if relax_indices:
@@ -96,6 +109,16 @@ def neb(
         relax_atoms=relax_indices,
         logfile=log
     )
+
+    # Optimize endpoints if requested
+    if optimize_endpoints:
+        neb.optimize_endpoints(
+            endpoint_fmax=endpoint_fmax,
+            optimizer=endpoint_optimizer,
+            max_steps=endpoint_max_steps
+        )
+        # Re-setup NEB images with optimized endpoints
+        neb.images = neb.setup_neb()
 
     typer.echo(" Interpolating with IDPP...")
     neb.interpolate_idpp()

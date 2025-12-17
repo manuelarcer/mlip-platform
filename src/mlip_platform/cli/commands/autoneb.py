@@ -22,7 +22,11 @@ def autoneb(
     interpolate_method: str = typer.Option("idpp", help="Interpolation method: 'linear' or 'idpp'"),
     maxsteps: int = typer.Option(10000, help="Maximum steps per relaxation"),
     prefix: str = typer.Option("autoneb", help="Prefix for output files"),
-    relax_atoms: str = typer.Option(None, help="⚠️ WARNING: Comma-separated atom indices to relax. May not work well with AutoNEB!")
+    relax_atoms: str = typer.Option(None, help="⚠️ WARNING: Comma-separated atom indices to relax. May not work well with AutoNEB!"),
+    optimize_endpoints: bool = typer.Option(True, help="Optimize initial and final structures before AutoNEB"),
+    endpoint_fmax: float = typer.Option(0.01, help="Force threshold for endpoint optimization (eV/Å)"),
+    endpoint_optimizer: str = typer.Option("bfgs", help="Optimizer for endpoints: 'bfgs', 'lbfgs', 'fire'"),
+    endpoint_max_steps: int = typer.Option(200, help="Maximum steps for endpoint optimization")
 ):
     """
     Run AutoNEB calculation with dynamic image insertion.
@@ -89,6 +93,10 @@ def autoneb(
     typer.echo(f"   interpolate_method: {interpolate_method}")
     typer.echo(f"   maxsteps:           {maxsteps}")
     typer.echo(f"   prefix:             {prefix}")
+    typer.echo(f"   optimize_endpoints: {optimize_endpoints}")
+    if optimize_endpoints:
+        typer.echo(f"   endpoint_fmax:      {endpoint_fmax}")
+        typer.echo(f"   endpoint_optimizer: {endpoint_optimizer}")
     typer.echo(f"   output_dir:         {output_dir}\n")
 
     # Save parameters
@@ -109,6 +117,11 @@ def autoneb(
         f.write(f"interpolate_method:    {interpolate_method}\n")
         f.write(f"maxsteps:              {maxsteps}\n")
         f.write(f"prefix:                {prefix}\n")
+        f.write(f"Optimize endpoints:    {optimize_endpoints}\n")
+        if optimize_endpoints:
+            f.write(f"Endpoint fmax:         {endpoint_fmax}\n")
+            f.write(f"Endpoint optimizer:    {endpoint_optimizer}\n")
+            f.write(f"Endpoint max steps:    {endpoint_max_steps}\n")
         f.write(f"output_dir:            {output_dir}\n")
         if relax_indices:
             f.write(f"relax_atoms:           {relax_indices}\n")
@@ -125,6 +138,14 @@ def autoneb(
         output_dir=output_dir,
         relax_atoms=relax_indices
     )
+
+    # Optimize endpoints if requested
+    if optimize_endpoints:
+        neb.optimize_endpoints(
+            endpoint_fmax=endpoint_fmax,
+            optimizer=endpoint_optimizer,
+            max_steps=endpoint_max_steps
+        )
 
     # Run AutoNEB
     neb.run_autoneb(
