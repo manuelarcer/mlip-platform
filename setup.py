@@ -10,13 +10,17 @@ setup(
     packages=find_packages(where="src"),  # <-- Looks inside /src
     install_requires=[
         "typer[all]",
-        "ase"
+        "ase",
+        "pandas",
+        "matplotlib",
+        "scipy"
     ],
     entry_points={
         'console_scripts': [
             'md = mlip_platform.cli.commands.md:app',
             'neb = mlip_platform.cli.commands.neb:app',
             'autoneb = mlip_platform.cli.commands.autoneb:app',
+            'autoneb-results = mlip_platform.cli.commands.autoneb_results:app',
             'benchmark = mlip_platform.cli.commands.benchmark:app',
             'optimize = mlip_platform.cli.commands.optimize:app',
         ],

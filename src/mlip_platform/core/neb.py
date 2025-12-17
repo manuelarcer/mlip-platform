@@ -282,7 +282,27 @@ class CustomNEB:
 
             # Prepare initial images (just start and end for AutoNEB)
             # AutoNEB will dynamically add intermediate images
-            initial_images = [self.initial, self.final]
+
+            # IMPORTANT: Wrap final structure to ensure MIC is respected
+            # This ensures the diffusing atom takes the shortest path across periodic boundaries
+            from ase.geometry import find_mic
+            import numpy as np
+
+            final_wrapped = self.final.copy()
+
+            # Calculate displacement with MIC
+            disp = final_wrapped.get_positions() - self.initial.get_positions()
+            mic_disp, mic_dist = find_mic(disp, self.initial.cell, pbc=True)
+
+            # Apply MIC-corrected positions to final structure
+            final_wrapped.set_positions(self.initial.get_positions() + mic_disp)
+
+            # Check if wrapping made a difference
+            max_diff = np.max(np.abs(disp - mic_disp))
+            if max_diff > 0.1:
+                print(f"   ✓ Applied MIC wrapping (max correction: {max_diff:.3f} Å)")
+
+            initial_images = [self.initial, final_wrapped]
 
             # Attach calculators and calculate energies for initial images
             # This is required so AutoNEB doesn't crash with NaN energies
