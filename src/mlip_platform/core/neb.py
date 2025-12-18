@@ -57,6 +57,16 @@ class CustomNEB:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.relax_atoms = relax_atoms
         self.logfile = logfile
+
+        # Apply FixAtoms constraints to initial and final structures if relax_atoms is specified
+        if self.relax_atoms is not None:
+            from ase.constraints import FixAtoms
+            all_indices = set(range(len(self.initial)))
+            fixed_indices = list(all_indices - set(self.relax_atoms))
+
+            self.initial.set_constraint(FixAtoms(indices=fixed_indices))
+            self.final.set_constraint(FixAtoms(indices=fixed_indices))
+
         self.images = self.setup_neb()
 
     def setup_calculator(self, model=None, uma_task=None):
