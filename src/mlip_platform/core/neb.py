@@ -192,7 +192,7 @@ class CustomNEB:
 
         return results
 
-    def _check_endpoint_similarity(self, displacement_threshold=0.5, energy_threshold=0.01):
+    def _check_endpoint_similarity(self, displacement_threshold=1.0, energy_threshold=0.02):
         """
         Check if initial and final structures are too similar after optimization.
 
@@ -202,9 +202,9 @@ class CustomNEB:
         Parameters
         ----------
         displacement_threshold : float
-            Threshold in Angstroms for average displacement warning (default: 0.5 Å)
+            Threshold in Angstroms for max displacement warning (default: 1.0 Å)
         energy_threshold : float
-            Threshold in eV for energy difference warning (default: 0.01 eV)
+            Threshold in eV for energy difference warning (default: 0.02 eV)
 
         Returns
         -------
@@ -235,23 +235,24 @@ class CustomNEB:
         print(f"   Energy difference:    {energy_diff:.6f} eV")
 
         # Check for warnings
-        is_similar = False
+        similar_energy = False
+        similar_geom = False
         warning_reasons = []
 
-        if avg_displacement < displacement_threshold:
-            is_similar = True
-            warning_reasons.append(f"average displacement ({avg_displacement:.3f} Å) < {displacement_threshold} Å")
+        #if avg_displacement < displacement_threshold:
+        #    is_similar = True
+        #    warning_reasons.append(f"average displacement ({avg_displacement:.3f} Å) < {displacement_threshold} Å")
 
         if energy_diff < energy_threshold:
-            is_similar = True
+            similar_energy = True
             warning_reasons.append(f"energy difference ({energy_diff:.6f} eV) < {energy_threshold} eV")
 
-        if max_displacement < 1.0:  # If even the max displacement is small
-            is_similar = True
-            warning_reasons.append(f"max displacement ({max_displacement:.3f} Å) < 1.0 Å")
+        if max_displacement < displacement_threshold:  # If even the max displacement is small
+            similar_geom = True
+            warning_reasons.append(f"max displacement ({max_displacement:.3f} Å) < {displacement_threshold} Å")
 
-        if is_similar:
-            print(f"\n   ⚠️  WARNING: Initial and final structures appear very similar!")
+        if similar_energy or similar_geom:
+            print(f"\n   ⚠️  WARNING: Either the energy or geometry of the endpoints is too similar!")
             print(f"   This may indicate that one endpoint relaxed to the other configuration.")
             print(f"   Reasons:")
             for reason in warning_reasons:
@@ -269,7 +270,7 @@ class CustomNEB:
             'max_disp_atom': int(max_disp_atom),
             'min_displacement': min_displacement,
             'energy_diff': energy_diff,
-            'is_similar': is_similar,
+            'is_similar': similar_energy or similar_geom,
             'warning_reasons': warning_reasons
         }
 
