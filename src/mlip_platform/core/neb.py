@@ -202,7 +202,7 @@ class CustomNEB:
 
         return results
 
-    def _check_endpoint_similarity(self, displacement_threshold=1.0, energy_threshold=0.02):
+    def _check_endpoint_similarity(self, displacement_threshold=0.5, energy_threshold=0.02):
         """
         Check if initial and final structures are too similar after optimization.
 
@@ -212,7 +212,7 @@ class CustomNEB:
         Parameters
         ----------
         displacement_threshold : float
-            Threshold in Angstroms for max displacement warning (default: 1.0 Å)
+            Threshold in Angstroms for max displacement warning (default: 0.5 Å)
         energy_threshold : float
             Threshold in eV for energy difference warning (default: 0.02 eV)
 
