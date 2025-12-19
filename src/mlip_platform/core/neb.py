@@ -584,7 +584,7 @@ class CustomNEB:
             results['i'].append(i)
             results['e'].append(image.get_potential_energy())
         df = pd.DataFrame(results)
-        df['rel_e'] = df['e'] - df['e'].min()
+        df['rel_e'] = df['e'] - df['e'].iloc[0]  # Reference to initial structure
         df.to_csv(self.output_dir / "neb_data.csv", index=False)
         return df
 
