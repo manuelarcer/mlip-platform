@@ -1,6 +1,7 @@
 from pathlib import Path
 import typer
 from ase.io import read
+from ase.optimize import FIRE, MDMin
 from mlip_platform.core.neb import CustomNEB
 from mlip_platform.cli.utils import detect_mlip, validate_mlip
 
@@ -18,6 +19,9 @@ def neb(
     uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
     relax_atoms: str = typer.Option(None, help="Comma-separated list of atom indices to relax (e.g. '0,1,5'). If set, others are fixed."),
     log: str = typer.Option("neb.log", help="Name for the NEB iteration log file (default: neb.log)"),
+    k: float = typer.Option(0.1, help="Spring constant for NEB"),
+    climb: bool = typer.Option(True, help="Enable climbing image NEB"),
+    neb_optimizer: str = typer.Option("fire", help="NEB optimizer: 'fire' or 'mdmin'"),
     optimize_endpoints: bool = typer.Option(True, help="Optimize initial and final structures before NEB"),
     endpoint_fmax: float = typer.Option(0.01, help="Force threshold for endpoint optimization (eV/Å)"),
     endpoint_optimizer: str = typer.Option("bfgs", help="Optimizer for endpoints: 'bfgs', 'lbfgs', 'fire'"),
@@ -66,6 +70,9 @@ def neb(
     typer.echo(f" - interp_fmax:         {interp_fmax}")
     typer.echo(f" - interp_steps:        {interp_steps}")
     typer.echo(f" - final fmax:          {fmax}")
+    typer.echo(f" - spring constant (k): {k}")
+    typer.echo(f" - climb:               {climb}")
+    typer.echo(f" - NEB optimizer:       {neb_optimizer}")
     typer.echo(f" - optimize_endpoints:  {optimize_endpoints}")
     if optimize_endpoints:
         typer.echo(f" - endpoint_fmax:       {endpoint_fmax}")
@@ -85,6 +92,9 @@ def neb(
         f.write(f"IDPP fmax:             {interp_fmax}\n")
         f.write(f"IDPP steps:            {interp_steps}\n")
         f.write(f"Final fmax:            {fmax}\n")
+        f.write(f"Spring constant (k):   {k}\n")
+        f.write(f"Climb:                 {climb}\n")
+        f.write(f"NEB optimizer:         {neb_optimizer}\n")
         f.write(f"Optimize endpoints:    {optimize_endpoints}\n")
         if optimize_endpoints:
             f.write(f"Endpoint fmax:         {endpoint_fmax}\n")
@@ -154,8 +164,12 @@ def neb(
     typer.echo(" Interpolating with IDPP...")
     neb.interpolate_idpp()
 
-    typer.echo(" Running NEB optimization...")
-    neb.run_neb()
+    # Select NEB optimizer
+    optimizer_map = {'fire': FIRE, 'mdmin': MDMin}
+    neb_opt = optimizer_map.get(neb_optimizer.lower(), FIRE)
+
+    typer.echo(f" Running NEB optimization (optimizer={neb_optimizer.upper()}, climb={climb})...")
+    neb.run_neb(optimizer=neb_opt, climb=climb)
 
     typer.echo(" Processing results...")
     df = neb.process_results()
