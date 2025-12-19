@@ -1,7 +1,7 @@
 from pathlib import Path
 import typer
 from ase.io import read
-from ase.optimize import FIRE, MDMin
+from ase.optimize import FIRE, MDMin, BFGS, LBFGS
 from mlip_platform.core.neb import CustomNEB
 from mlip_platform.cli.utils import detect_mlip, validate_mlip
 
@@ -21,7 +21,7 @@ def neb(
     log: str = typer.Option("neb.log", help="Name for the NEB iteration log file (default: neb.log)"),
     k: float = typer.Option(0.1, help="Spring constant for NEB"),
     climb: bool = typer.Option(True, help="Enable climbing image NEB"),
-    neb_optimizer: str = typer.Option("fire", help="NEB optimizer: 'fire' or 'mdmin'"),
+    neb_optimizer: str = typer.Option("fire", help="NEB optimizer: 'fire', 'mdmin', 'bfgs', or 'lbfgs'"),
     optimize_endpoints: bool = typer.Option(True, help="Optimize initial and final structures before NEB"),
     endpoint_fmax: float = typer.Option(0.01, help="Force threshold for endpoint optimization (eV/Å)"),
     endpoint_optimizer: str = typer.Option("bfgs", help="Optimizer for endpoints: 'bfgs', 'lbfgs', 'fire'"),
@@ -165,7 +165,7 @@ def neb(
     neb.interpolate_idpp()
 
     # Select NEB optimizer
-    optimizer_map = {'fire': FIRE, 'mdmin': MDMin}
+    optimizer_map = {'fire': FIRE, 'mdmin': MDMin, 'bfgs': BFGS, 'lbfgs': LBFGS}
     neb_opt = optimizer_map.get(neb_optimizer.lower(), FIRE)
 
     typer.echo(f" Running NEB optimization (optimizer={neb_optimizer.upper()}, climb={climb})...")
