@@ -22,6 +22,7 @@ def neb(
     k: float = typer.Option(0.1, help="Spring constant for NEB"),
     climb: bool = typer.Option(True, help="Enable climbing image NEB"),
     neb_optimizer: str = typer.Option("fire", help="NEB optimizer: 'fire', 'mdmin', 'bfgs', or 'lbfgs'"),
+    neb_max_steps: int = typer.Option(600, help="Maximum steps for NEB optimization"),
     optimize_endpoints: bool = typer.Option(True, help="Optimize initial and final structures before NEB"),
     endpoint_fmax: float = typer.Option(0.01, help="Force threshold for endpoint optimization (eV/Å)"),
     endpoint_optimizer: str = typer.Option("bfgs", help="Optimizer for endpoints: 'bfgs', 'lbfgs', 'fire'"),
@@ -73,6 +74,7 @@ def neb(
     typer.echo(f" - spring constant (k): {k}")
     typer.echo(f" - climb:               {climb}")
     typer.echo(f" - NEB optimizer:       {neb_optimizer}")
+    typer.echo(f" - NEB max steps:       {neb_max_steps}")
     typer.echo(f" - optimize_endpoints:  {optimize_endpoints}")
     if optimize_endpoints:
         typer.echo(f" - endpoint_fmax:       {endpoint_fmax}")
@@ -95,6 +97,7 @@ def neb(
         f.write(f"Spring constant (k):   {k}\n")
         f.write(f"Climb:                 {climb}\n")
         f.write(f"NEB optimizer:         {neb_optimizer}\n")
+        f.write(f"NEB max steps:         {neb_max_steps}\n")
         f.write(f"Optimize endpoints:    {optimize_endpoints}\n")
         if optimize_endpoints:
             f.write(f"Endpoint fmax:         {endpoint_fmax}\n")
@@ -168,8 +171,8 @@ def neb(
     optimizer_map = {'fire': FIRE, 'mdmin': MDMin, 'bfgs': BFGS, 'lbfgs': LBFGS}
     neb_opt = optimizer_map.get(neb_optimizer.lower(), FIRE)
 
-    typer.echo(f" Running NEB optimization (optimizer={neb_optimizer.upper()}, climb={climb})...")
-    neb.run_neb(optimizer=neb_opt, climb=climb)
+    typer.echo(f" Running NEB optimization (optimizer={neb_optimizer.upper()}, climb={climb}, max_steps={neb_max_steps})...")
+    neb.run_neb(optimizer=neb_opt, climb=climb, max_steps=neb_max_steps)
 
     typer.echo(" Processing results...")
     df = neb.process_results()

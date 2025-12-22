@@ -343,7 +343,7 @@ class CustomNEB:
                 current_constraints.append(self._fix_atoms_constraint)
                 img.set_constraint(current_constraints)
 
-    def run_neb(self, optimizer=FIRE, trajectory='A2B.traj', full_traj='A2B_full.traj', climb=False):
+    def run_neb(self, optimizer=FIRE, trajectory='A2B.traj', full_traj='A2B_full.traj', climb=False, max_steps=600):
         neb = NEB(self.images, climb=climb)
         for image in self.images:
             image.calc = self.setup_calculator()
@@ -392,7 +392,7 @@ class CustomNEB:
 
         opt = optimizer(neb, logfile=log_file)
         opt.attach(log_iteration, interval=1)
-        opt.run(fmax=self.fmax)
+        opt.run(fmax=self.fmax, steps=max_steps)
 
         log_file.close()
         traj_writer.close()
