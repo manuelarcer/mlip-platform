@@ -111,27 +111,27 @@ class CustomNEB:
                     elif key == 'Total images':
                         params['total_images'] = int(value)
                     elif key == 'IDPP fmax':
-                        params['interp_fmax'] = float(value)
+                        params['interp_fmax'] = None if value == 'None' else float(value)
                     elif key == 'IDPP steps':
-                        params['interp_steps'] = int(value)
+                        params['interp_steps'] = None if value == 'None' else int(value)
                     elif key == 'Final fmax':
                         params['fmax'] = float(value)
                     elif key == 'Spring constant (k)':
-                        params['k'] = float(value)
+                        params['k'] = None if value == 'None' else float(value)
                     elif key == 'Climb':
                         params['climb'] = value.lower() == 'true'
                     elif key == 'NEB optimizer':
-                        params['neb_optimizer'] = value.lower()
+                        params['neb_optimizer'] = value.lower() if value != 'None' else None
                     elif key == 'NEB max steps':
-                        params['neb_max_steps'] = int(value)
+                        params['neb_max_steps'] = None if value == 'None' else int(value)
                     elif key == 'Optimize endpoints':
                         params['optimize_endpoints'] = value.lower() == 'true'
                     elif key == 'Endpoint fmax':
-                        params['endpoint_fmax'] = float(value)
+                        params['endpoint_fmax'] = None if value == 'None' else float(value)
                     elif key == 'Endpoint optimizer':
-                        params['endpoint_optimizer'] = value.lower()
+                        params['endpoint_optimizer'] = value.lower() if value != 'None' else None
                     elif key == 'Endpoint max steps':
-                        params['endpoint_max_steps'] = int(value)
+                        params['endpoint_max_steps'] = None if value == 'None' else int(value)
                     elif key == 'Log file':
                         params['log'] = value
                     elif key == 'Output dir':

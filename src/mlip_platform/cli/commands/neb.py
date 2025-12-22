@@ -266,8 +266,9 @@ def neb(
         if mlip.startswith("uma-"):
             typer.echo(f"   UMA task: {uma_task}")  
 
+    # Handle relax_atoms only in normal mode (in restart mode it's loaded from parameters)
     relax_indices = None
-    if relax_atoms:
+    if not skip_to_optimization and relax_atoms:
         try:
             relax_indices = [int(i.strip()) for i in relax_atoms.split(",")]
             # Validate indices are within range
@@ -299,32 +300,34 @@ def neb(
         typer.echo(f" - endpoint_optimizer:  {endpoint_optimizer}")
     typer.echo(f" - output_dir:          {output_dir}")
 
-    with open(output_dir / "neb_parameters.txt", "w") as f:
-        f.write("NEB Run Parameters\n")
-        f.write("===================\n")
-        f.write(f"MLIP model:            {mlip}\n")
-        if mlip.startswith("uma-"):
-            f.write(f"UMA task:              {uma_task}\n")
-        f.write(f"Initial:               {initial}\n")
-        f.write(f"Final:                 {final}\n")
-        f.write(f"Intermediate images:   {num_images}\n")
-        f.write(f"Total images:          {total_images}\n")
-        f.write(f"IDPP fmax:             {interp_fmax}\n")
-        f.write(f"IDPP steps:            {interp_steps}\n")
-        f.write(f"Final fmax:            {fmax}\n")
-        f.write(f"Spring constant (k):   {k}\n")
-        f.write(f"Climb:                 {climb}\n")
-        f.write(f"NEB optimizer:         {neb_optimizer}\n")
-        f.write(f"NEB max steps:         {neb_max_steps}\n")
-        f.write(f"Optimize endpoints:    {optimize_endpoints}\n")
-        if optimize_endpoints:
-            f.write(f"Endpoint fmax:         {endpoint_fmax}\n")
-            f.write(f"Endpoint optimizer:    {endpoint_optimizer}\n")
-            f.write(f"Endpoint max steps:    {endpoint_max_steps}\n")
-        f.write(f"Log file:              {log}\n")
-        f.write(f"Output dir:            {output_dir}\n")
-        if relax_indices:
-            f.write(f"Relax atoms:           {relax_indices}\n")
+    # Write parameter file only in normal mode (not restart mode where it already exists)
+    if not skip_to_optimization:
+        with open(output_dir / "neb_parameters.txt", "w") as f:
+            f.write("NEB Run Parameters\n")
+            f.write("===================\n")
+            f.write(f"MLIP model:            {mlip}\n")
+            if mlip.startswith("uma-"):
+                f.write(f"UMA task:              {uma_task}\n")
+            f.write(f"Initial:               {initial}\n")
+            f.write(f"Final:                 {final}\n")
+            f.write(f"Intermediate images:   {num_images}\n")
+            f.write(f"Total images:          {total_images}\n")
+            f.write(f"IDPP fmax:             {interp_fmax}\n")
+            f.write(f"IDPP steps:            {interp_steps}\n")
+            f.write(f"Final fmax:            {fmax}\n")
+            f.write(f"Spring constant (k):   {k}\n")
+            f.write(f"Climb:                 {climb}\n")
+            f.write(f"NEB optimizer:         {neb_optimizer}\n")
+            f.write(f"NEB max steps:         {neb_max_steps}\n")
+            f.write(f"Optimize endpoints:    {optimize_endpoints}\n")
+            if optimize_endpoints:
+                f.write(f"Endpoint fmax:         {endpoint_fmax}\n")
+                f.write(f"Endpoint optimizer:    {endpoint_optimizer}\n")
+                f.write(f"Endpoint max steps:    {endpoint_max_steps}\n")
+            f.write(f"Log file:              {log}\n")
+            f.write(f"Output dir:            {output_dir}\n")
+            if relax_indices:
+                f.write(f"Relax atoms:           {relax_indices}\n")
 
     # Create NEB instance (skip in restart mode where it's already loaded)
     if not skip_to_optimization:
