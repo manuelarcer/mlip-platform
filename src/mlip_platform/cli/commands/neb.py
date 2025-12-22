@@ -112,7 +112,9 @@ def neb(
 
         provided_forbidden = [k for k, v in forbidden_params.items() if v is not None]
         if provided_forbidden:
-            typer.echo(f"❌ Error: Cannot specify {', '.join(f'--{k.replace(\"_\", \"-\")}' for k in provided_forbidden)} with --restart")
+            # Convert parameter names to CLI format (e.g., 'num_images' -> '--num-images')
+            param_names = ', '.join(f'--{k.replace("_", "-")}' for k in provided_forbidden)
+            typer.echo(f"❌ Error: Cannot specify {param_names} with --restart")
             typer.echo("   These parameters are loaded from neb_parameters.txt")
             raise typer.Exit(code=1)
 
