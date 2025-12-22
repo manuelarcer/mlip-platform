@@ -326,20 +326,21 @@ def neb(
         if relax_indices:
             f.write(f"Relax atoms:           {relax_indices}\n")
 
-
-    neb = CustomNEB(
-        initial=atoms_initial,
-        final=atoms_final,
-        num_images=num_images,
-        interp_fmax=interp_fmax,
-        interp_steps=interp_steps,
-        fmax=fmax,
-        mlip=mlip,
-        uma_task=uma_task,
-        output_dir=output_dir,
-        relax_atoms=relax_indices,
-        logfile=log
-    )
+    # Create NEB instance (skip in restart mode where it's already loaded)
+    if not skip_to_optimization:
+        neb = CustomNEB(
+            initial=atoms_initial,
+            final=atoms_final,
+            num_images=num_images,
+            interp_fmax=interp_fmax,
+            interp_steps=interp_steps,
+            fmax=fmax,
+            mlip=mlip,
+            uma_task=uma_task,
+            output_dir=output_dir,
+            relax_atoms=relax_indices,
+            logfile=log
+        )
 
     # Skip interpolation and endpoint optimization in restart mode
     if not skip_to_optimization:
