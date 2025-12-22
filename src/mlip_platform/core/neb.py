@@ -69,6 +69,219 @@ class CustomNEB:
 
         self.images = self.setup_neb()
 
+    @staticmethod
+    def _parse_parameters_file(params_path):
+        """
+        Parse neb_parameters.txt file.
+
+        Parameters
+        ----------
+        params_path : Path
+            Path to neb_parameters.txt
+
+        Returns
+        -------
+        dict
+            Dictionary of parameters
+        """
+        params = {}
+
+        with open(params_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('=') or line.startswith('NEB Run'):
+                    continue
+
+                if ':' in line:
+                    key, value = line.split(':', 1)
+                    key = key.strip()
+                    value = value.strip()
+
+                    # Parse based on known keys
+                    if key == 'MLIP model':
+                        params['mlip'] = value
+                    elif key == 'UMA task':
+                        params['uma_task'] = value
+                    elif key == 'Initial':
+                        params['initial'] = value
+                    elif key == 'Final':
+                        params['final'] = value
+                    elif key == 'Intermediate images':
+                        params['num_images'] = int(value)
+                    elif key == 'Total images':
+                        params['total_images'] = int(value)
+                    elif key == 'IDPP fmax':
+                        params['interp_fmax'] = float(value)
+                    elif key == 'IDPP steps':
+                        params['interp_steps'] = int(value)
+                    elif key == 'Final fmax':
+                        params['fmax'] = float(value)
+                    elif key == 'Spring constant (k)':
+                        params['k'] = float(value)
+                    elif key == 'Climb':
+                        params['climb'] = value.lower() == 'true'
+                    elif key == 'NEB optimizer':
+                        params['neb_optimizer'] = value.lower()
+                    elif key == 'NEB max steps':
+                        params['neb_max_steps'] = int(value)
+                    elif key == 'Optimize endpoints':
+                        params['optimize_endpoints'] = value.lower() == 'true'
+                    elif key == 'Endpoint fmax':
+                        params['endpoint_fmax'] = float(value)
+                    elif key == 'Endpoint optimizer':
+                        params['endpoint_optimizer'] = value.lower()
+                    elif key == 'Endpoint max steps':
+                        params['endpoint_max_steps'] = int(value)
+                    elif key == 'Log file':
+                        params['log'] = value
+                    elif key == 'Output dir':
+                        params['output_dir'] = value
+                    elif key == 'Relax atoms':
+                        # Parse list format: [1, 2, 3]
+                        value = value.strip('[]')
+                        if value:
+                            params['relax_atoms'] = [int(x.strip()) for x in value.split(',')]
+                        else:
+                            params['relax_atoms'] = None
+
+        # Validate required parameters
+        required = ['mlip', 'num_images', 'fmax']
+        missing = [k for k in required if k not in params]
+        if missing:
+            raise ValueError(
+                f"neb_parameters.txt is missing required fields: {missing}\n"
+                "The file may be from an older version or corrupted."
+            )
+
+        return params
+
+    @classmethod
+    def load_from_restart(cls, output_dir='.', mlip=None, uma_task=None,
+                         fmax=None, logfile=None, k=None, climb=None,
+                         neb_optimizer=None, neb_max_steps=None):
+        """
+        Load a CustomNEB instance from existing restart files.
+
+        Parameters
+        ----------
+        output_dir : str or Path
+            Directory containing A2B_full.traj and neb_parameters.txt
+        mlip : str, optional
+            Override MLIP model (warning shown if different from original)
+        uma_task : str, optional
+            Override UMA task
+        fmax : float, optional
+            Override force convergence threshold
+        logfile : str, optional
+            Override log file name
+        k : float, optional
+            Override spring constant
+        climb : bool, optional
+            Override climbing image setting
+        neb_optimizer : str, optional
+            Override optimizer
+        neb_max_steps : int, optional
+            Override max steps
+
+        Returns
+        -------
+        CustomNEB
+            Reconstructed NEB instance with loaded images
+        dict
+            Dictionary of loaded parameters from neb_parameters.txt
+        """
+        from pathlib import Path
+        from ase.io import read
+
+        output_dir = Path(output_dir)
+
+        # 1. Verify required files exist
+        full_traj_path = output_dir / 'A2B_full.traj'
+        params_path = output_dir / 'neb_parameters.txt'
+
+        if not full_traj_path.exists():
+            raise FileNotFoundError(
+                f"Cannot restart: A2B_full.traj not found in {output_dir}\n"
+                "This file is required to load the previous NEB state."
+            )
+
+        if not params_path.exists():
+            raise FileNotFoundError(
+                f"Cannot restart: neb_parameters.txt not found in {output_dir}\n"
+                "This file contains the structural parameters needed for restart."
+            )
+
+        # 2. Parse neb_parameters.txt
+        params = cls._parse_parameters_file(params_path)
+
+        # 3. Load last N images from A2B_full.traj
+        num_images = params['num_images']
+        total_images = num_images + 2
+
+        try:
+            # Read last total_images frames from trajectory
+            # Index format: '-N:' means last N frames
+            images = read(str(full_traj_path), index=f'-{total_images}:')
+
+            if len(images) != total_images:
+                raise ValueError(
+                    f"Expected {total_images} images but got {len(images)} "
+                    f"from A2B_full.traj. The trajectory may be corrupted."
+                )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to load images from A2B_full.traj: {e}\n"
+                "The trajectory file may be corrupted or incomplete."
+            )
+
+        # 4. Warn if MLIP changed
+        original_mlip = params['mlip']
+        if mlip is not None and mlip != original_mlip:
+            print(f"\n⚠️  WARNING: MLIP changed from '{original_mlip}' to '{mlip}'")
+            print("   This will cause energy/force discontinuity in the NEB path.")
+            print("   The optimization will continue from the last geometry but with new forces.\n")
+        else:
+            mlip = original_mlip
+
+        # 5. Use overrides or defaults from parameters
+        uma_task = uma_task or params.get('uma_task', 'omat')
+        fmax = fmax if fmax is not None else params['fmax']
+        logfile = logfile or params.get('log', 'neb.log')
+
+        # 6. Create new instance with loaded images (bypass normal initialization)
+        instance = cls.__new__(cls)
+        instance.initial = images[0]
+        instance.final = images[-1]
+        instance.num_images = num_images
+        instance.interp_fmax = params.get('interp_fmax', 0.1)
+        instance.interp_steps = params.get('interp_steps', 100)
+        instance.fmax = fmax
+        instance.mlip = mlip
+        instance.uma_task = uma_task
+        instance.output_dir = output_dir
+        instance.logfile = logfile
+        instance.relax_atoms = params.get('relax_atoms', None)
+        instance._fix_atoms_constraint = None
+
+        # 7. Set loaded images directly (skip setup_neb)
+        instance.images = images
+
+        # 8. Reapply constraints if relax_atoms was specified
+        if instance.relax_atoms is not None:
+            from ase.constraints import FixAtoms
+            all_indices = set(range(len(instance.initial)))
+            fixed_indices = list(all_indices - set(instance.relax_atoms))
+            constraint = FixAtoms(indices=fixed_indices)
+
+            # Apply to all images (including endpoints)
+            for img in instance.images:
+                img.set_constraint(constraint)
+
+            # Store for potential later use
+            instance._fix_atoms_constraint = constraint
+
+        return instance, params
+
     def setup_calculator(self, model=None, uma_task=None):
         """
         Setup calculator for the given MLIP model.
