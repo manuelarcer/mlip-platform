@@ -68,7 +68,12 @@ def create_backup_folder(output_dir):
             shutil.move(str(poscar_dir), str(backup_dir / poscar_dir.name))
             moved_files.append(poscar_dir.name + '/')
 
-    # DO NOT move neb_parameters.txt - it's needed for restart
+    # COPY (not move) neb_parameters.txt to backup - it's needed for restart but
+    # backup should have a complete record of the original run's parameters
+    params_file = output_dir / 'neb_parameters.txt'
+    if params_file.exists():
+        shutil.copy(str(params_file), str(backup_dir / 'neb_parameters.txt'))
+        moved_files.append('neb_parameters.txt (copied)')
 
     return backup_dir, moved_files
 
@@ -210,9 +215,35 @@ def neb(
         log = log or loaded_params.get('log', 'neb.log')
         num_images = loaded_params['num_images']
         total_images = loaded_params['total_images']
+        relax_indices = loaded_params.get('relax_atoms')
 
         # Skip endpoint optimization on restart
         optimize_endpoints = False
+
+        # 8. Write updated parameter file for this restart run
+        with open(output_dir / "neb_parameters.txt", "w") as f:
+            f.write("NEB Run Parameters (RESTART)\n")
+            f.write("=============================\n")
+            f.write(f"Restarted from:        {backup_dir.name}\n")
+            f.write(f"MLIP model:            {mlip}\n")
+            if mlip.startswith("uma-"):
+                f.write(f"UMA task:              {uma_task}\n")
+            f.write(f"Initial:               (from restart)\n")
+            f.write(f"Final:                 (from restart)\n")
+            f.write(f"Intermediate images:   {num_images}\n")
+            f.write(f"Total images:          {total_images}\n")
+            f.write(f"IDPP fmax:             (from restart)\n")
+            f.write(f"IDPP steps:            (from restart)\n")
+            f.write(f"Final fmax:            {fmax}\n")
+            f.write(f"Spring constant (k):   {k}\n")
+            f.write(f"Climb:                 {climb}\n")
+            f.write(f"NEB optimizer:         {neb_optimizer}\n")
+            f.write(f"NEB max steps:         {neb_max_steps}\n")
+            f.write(f"Optimize endpoints:    False (restart)\n")
+            f.write(f"Log file:              {log}\n")
+            f.write(f"Output dir:            {output_dir}\n")
+            if relax_indices:
+                f.write(f"Relax atoms:           {relax_indices}\n")
 
         # Assign loaded NEB instance
         neb = neb_instance
