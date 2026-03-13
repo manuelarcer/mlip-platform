@@ -2,18 +2,31 @@ from setuptools import setup, find_packages
 
 setup(
     name="mlip-platform",
-    version="0.1.0",
+    version="0.2.0",
     description="CLI platform for running MLIP-based MD, NEB, and Benchmarking",
-    author="Your Name",
-    author_email="your.email@example.com",
-    package_dir={"": "src"},  # <-- This tells setuptools where your code is
-    packages=find_packages(where="src"),  # <-- Looks inside /src
+    author="Juan M Arce-Ramos",
+    author_email="juan.arce@ihpc.a-star.edu.sg",
+    python_requires=">=3.9",
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
     install_requires=[
         "typer[all]",
         "ase",
         "pandas",
         "matplotlib",
-        "scipy"
+        "scipy",
+        "asetools",
+    ],
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Science/Research",
+        "Topic :: Scientific/Engineering :: Chemistry",
+        "Topic :: Scientific/Engineering :: Physics",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     entry_points={
         'console_scripts': [

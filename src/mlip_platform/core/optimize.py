@@ -1,11 +1,17 @@
-import sys
+"""Geometry optimization engine using ASE."""
+import logging
 from pathlib import Path
+from typing import Optional
+
+import matplotlib.pyplot as plt
+import pandas as pd
 from ase.io import write
 from ase.io.trajectory import Trajectory
-from ase.optimize import FIRE, BFGS, LBFGS, BFGSLineSearch, GPMin, MDMin
-import pandas as pd
-import matplotlib.pyplot as plt
+from ase.optimize import BFGS, FIRE, LBFGS, BFGSLineSearch, GPMin, MDMin
 
+from mlip_platform.core.utils import calc_fmax
+
+logger = logging.getLogger(__name__)
 
 OPTIMIZER_MAP = {
     "fire": FIRE,
@@ -19,43 +25,48 @@ OPTIMIZER_MAP = {
 
 def run_optimization(
     atoms,
-    optimizer="fire",
-    fmax=0.05,
-    max_steps=200,
-    trajectory="opt.traj",
-    logfile="opt.log",
-    output_dir=".",
-    model_name="mlip",
-    verbose=True
-):
-    """
-    Run geometry optimization on an ASE Atoms object.
+    optimizer: str = "fire",
+    fmax: float = 0.05,
+    max_steps: int = 200,
+    trajectory: str = "opt.traj",
+    logfile: str = "opt.log",
+    output_dir: str | Path = ".",
+    model_name: str = "mlip",
+    verbose: bool = True,
+) -> bool:
+    """Run geometry optimization on an ASE Atoms object.
 
     Parameters
     ----------
     atoms : ase.Atoms
-        Atoms object with calculator attached
+        Atoms object with calculator attached.
     optimizer : str
-        Optimizer algorithm: 'fire', 'bfgs', 'lbfgs', 'bfgsls', 'gpmin', 'mdmin'
+        Optimizer algorithm: ``'fire'``, ``'bfgs'``, ``'lbfgs'``,
+        ``'bfgsls'``, ``'gpmin'``, ``'mdmin'``.
     fmax : float
-        Force convergence criterion (eV/Å)
+        Force convergence criterion (eV/Ang).
     max_steps : int
-        Maximum number of optimization steps
+        Maximum number of optimization steps.
     trajectory : str or Path
-        Trajectory filename
+        Trajectory filename.
     logfile : str or Path
-        Log filename
+        Log filename.
     output_dir : str or Path
-        Directory for output files
+        Directory for output files.
     model_name : str
-        Name of MLIP model for parameter file
+        Name of MLIP model for parameter file.
     verbose : bool
-        If True, show optimization progress table (default: True)
+        If True, show optimization progress table.
 
     Returns
     -------
-    converged : bool
-        Whether optimization converged
+    bool
+        Whether optimization converged.
+
+    Raises
+    ------
+    ValueError
+        If ``optimizer`` is not recognised.
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -63,13 +74,11 @@ def run_optimization(
     traj_file = output_path / trajectory
     log_file = output_path / logfile
 
-    # Extract prefix from logfile for convergence files
     logfile_stem = Path(logfile).stem
     csv_file = output_path / f"{logfile_stem}_convergence.csv"
     convergence_plot = output_path / f"{logfile_stem}_convergence.png"
     final_structure = output_path / f"{logfile_stem}_final.vasp"
 
-    # Select optimizer
     optimizer_name = optimizer.lower()
     if optimizer_name not in OPTIMIZER_MAP:
         raise ValueError(
@@ -79,88 +88,57 @@ def run_optimization(
 
     OptimizerClass = OPTIMIZER_MAP[optimizer_name]
 
-    # Set up trajectory
-    traj = Trajectory(str(traj_file), 'w', atoms)
+    traj = Trajectory(str(traj_file), "w", atoms)
 
-    # Set up optimizer with controlled verbosity
-    # When verbose=True, logfile is a string path which makes ASE print to both stdout and file
-    # When verbose=False, logfile is opened as file handle which suppresses stdout
-    if verbose:
-        opt = OptimizerClass(atoms, trajectory=str(traj_file), logfile=str(log_file))
-        logfile_handle = None
-    else:
-        logfile_handle = open(log_file, 'w')
-        opt = OptimizerClass(atoms, trajectory=str(traj_file), logfile=logfile_handle)
-
-    # Data collection for convergence analysis
-    log_data = {
-        "step": [],
-        "energy(eV)": [],
-        "fmax(eV/A)": [],
-    }
+    log_data = {"step": [], "energy(eV)": [], "fmax(eV/A)": []}
 
     def log_convergence():
-        """Callback to track convergence data"""
         step = opt.nsteps
         energy = atoms.get_potential_energy()
-        forces = atoms.get_forces()
-        fmax = (forces**2).sum(axis=1).max()**0.5
-
+        fmax_val = calc_fmax(atoms.get_forces())
         log_data["step"].append(step)
         log_data["energy(eV)"].append(energy)
-        log_data["fmax(eV/A)"].append(fmax)
+        log_data["fmax(eV/A)"].append(fmax_val)
 
-    # Attach convergence logger
-    opt.attach(log_convergence, interval=1)
-
-    # Run optimization
     if verbose:
-        print(f"\n🚀 Starting optimization with {optimizer.upper()}")
-        print(f"   fmax = {fmax} eV/Å, max_steps = {max_steps}\n")
+        opt = OptimizerClass(atoms, trajectory=str(traj_file), logfile=str(log_file))
+        opt.attach(log_convergence, interval=1)
+        logger.info("Starting optimization with %s (fmax=%.4f, max_steps=%d)", optimizer.upper(), fmax, max_steps)
+        converged = opt.run(fmax=fmax, steps=max_steps)
+    else:
+        with open(log_file, "w") as lf:
+            opt = OptimizerClass(atoms, trajectory=str(traj_file), logfile=lf)
+            opt.attach(log_convergence, interval=1)
+            converged = opt.run(fmax=fmax, steps=max_steps)
 
-    converged = opt.run(fmax=fmax, steps=max_steps)
-
-    # Close logfile handle if opened
-    if logfile_handle:
-        logfile_handle.close()
-
-    # Final logging
     final_energy = atoms.get_potential_energy()
-    final_forces = atoms.get_forces()
-    final_fmax = (final_forces**2).sum(axis=1).max()**0.5
+    final_fmax = calc_fmax(atoms.get_forces())
 
-    print(f"\n✅ Optimization complete")
-    print(f"   Converged: {converged}")
-    print(f"   Steps: {opt.nsteps}")
-    print(f"   Final energy: {final_energy:.6f} eV")
-    print(f"   Final fmax: {final_fmax:.6f} eV/Å")
+    logger.info("Optimization complete (converged=%s, steps=%d, energy=%.6f eV, fmax=%.6f eV/Ang)",
+                converged, opt.nsteps, final_energy, final_fmax)
 
-    # Save final structure
     write(str(final_structure), atoms, format="vasp")
 
-    # Save convergence data to CSV
     df = pd.DataFrame(log_data)
     df.to_csv(csv_file, index=False)
 
     # Plot convergence
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
 
-    # Energy convergence
-    ax1.plot(df["step"], df["energy(eV)"], marker='o', markersize=4, linewidth=1.5)
+    ax1.plot(df["step"], df["energy(eV)"], marker="o", markersize=4, linewidth=1.5)
     ax1.set_xlabel("Optimization Step")
     ax1.set_ylabel("Energy (eV)")
     ax1.set_title(f"Energy Convergence ({optimizer.upper()})")
     ax1.grid(True, alpha=0.3)
 
-    # Force convergence
-    ax2.plot(df["step"], df["fmax(eV/A)"], marker='o', markersize=4, linewidth=1.5, color='orange')
-    ax2.axhline(y=fmax, color='r', linestyle='--', label=f'fmax target = {fmax}')
+    ax2.plot(df["step"], df["fmax(eV/A)"], marker="o", markersize=4, linewidth=1.5, color="orange")
+    ax2.axhline(y=fmax, color="r", linestyle="--", label=f"fmax target = {fmax}")
     ax2.set_xlabel("Optimization Step")
-    ax2.set_ylabel("Max Force (eV/Å)")
+    ax2.set_ylabel("Max Force (eV/Ang)")
     ax2.set_title("Force Convergence")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
-    ax2.set_yscale('log')
+    ax2.set_yscale("log")
 
     plt.tight_layout()
     plt.savefig(convergence_plot, dpi=150)

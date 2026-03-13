@@ -5,7 +5,7 @@ from pathlib import Path
 app = typer.Typer(help="Run benchmarks using MACE and SevenNet via subprocess.")
 
 @app.command()
-def benchmark(
+def run(
     structure: Path = typer.Option(..., prompt=True, help="Structure file (.vasp) for benchmarking")
 ):
     """Run benchmark using all available MLIP models."""

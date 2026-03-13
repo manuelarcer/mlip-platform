@@ -1,49 +1,75 @@
+"""NEB calculation engine using ASE."""
+import glob
+import logging
+import os
+import shutil
 from pathlib import Path
-from ase.io import write
-from ase.mep import NEB
-from ase.mep.neb import idpp_interpolate
-from ase.mep.autoneb import AutoNEB
-from ase.optimize import MDMin, FIRE
-import pandas as pd
+from typing import Optional
+
 import matplotlib.pyplot as plt
-from ase.io.trajectory import Trajectory
-from scipy.interpolate import make_interp_spline
 import numpy as np
+import pandas as pd
+from ase.constraints import FixAtoms
+from ase.geometry import find_mic
+from ase.io import read, write
+from ase.io.trajectory import Trajectory
+from ase.io.vasp import write_vasp
+from ase.mep import NEB
+from ase.mep.autoneb import AutoNEB
+from ase.mep.neb import idpp_interpolate
+from ase.optimize import FIRE, MDMin
+from scipy.interpolate import make_interp_spline
+
+from mlip_platform.core.utils import calc_fmax
+
+logger = logging.getLogger(__name__)
+
 
 class CustomNEB:
-    def __init__(self, initial, final, num_images=9, interp_fmax=0.1, interp_steps=1000,
-                 fmax=0.05, mlip='7net-mf-ompa', uma_task='omat', output_dir='.', relax_atoms=None,
-                 logfile='neb.log'):
-        """
-        Initialize NEB calculation.
+    """Custom NEB wrapper around ASE's NEB implementation.
 
-        Parameters
-        ----------
-        initial : ase.Atoms
-            Initial structure
-        final : ase.Atoms
-            Final structure
-        num_images : int
-            Number of INTERMEDIATE images (excluding initial and final)
-            Total images = num_images + 2
-        interp_fmax : float
-            Force threshold for IDPP interpolation
-        interp_steps : int
-            Maximum steps for IDPP interpolation
-        fmax : float
-            Force convergence threshold for NEB optimization
-        mlip : str
-            MLIP model name
-        uma_task : str
-            Task name for UMA models
-        output_dir : str or Path
-            Output directory for results
-        relax_atoms : list of int, optional
-            List of atom indices to relax. If provided, all other atoms are fixed
-            at their linearly interpolated positions. IDPP is skipped.
-        logfile : str
-            Name of the log file for NEB iteration logging (default: 'neb.log')
-        """
+    Parameters
+    ----------
+    initial : ase.Atoms
+        Initial structure.
+    final : ase.Atoms
+        Final structure.
+    num_images : int
+        Number of INTERMEDIATE images (excluding initial and final).
+        Total images = num_images + 2.
+    interp_fmax : float
+        Force threshold for IDPP interpolation.
+    interp_steps : int
+        Maximum steps for IDPP interpolation.
+    fmax : float
+        Force convergence threshold for NEB optimization.
+    mlip : str
+        MLIP model name.
+    uma_task : str
+        Task name for UMA models.
+    output_dir : str or Path
+        Output directory for results.
+    relax_atoms : list[int] or None
+        Atom indices to relax.  All other atoms are fixed (highly-constrained mode).
+        IDPP is skipped when this is set.
+    logfile : str
+        Name of the log file for NEB iteration logging.
+    """
+
+    def __init__(
+        self,
+        initial,
+        final,
+        num_images: int = 9,
+        interp_fmax: float = 0.1,
+        interp_steps: int = 1000,
+        fmax: float = 0.05,
+        mlip: str = "7net-mf-ompa",
+        uma_task: str = "omat",
+        output_dir: str | Path = ".",
+        relax_atoms: Optional[list[int]] = None,
+        logfile: str = "neb.log",
+    ) -> None:
         self.initial = initial
         final.set_cell(initial.get_cell(), scale_atoms=True)
         self.final = final
@@ -58,94 +84,84 @@ class CustomNEB:
         self.relax_atoms = relax_atoms
         self.logfile = logfile
 
-        # Apply FixAtoms constraints to initial and final structures if relax_atoms is specified
         if self.relax_atoms is not None:
-            from ase.constraints import FixAtoms
             all_indices = set(range(len(self.initial)))
             fixed_indices = list(all_indices - set(self.relax_atoms))
-
             self.initial.set_constraint(FixAtoms(indices=fixed_indices))
             self.final.set_constraint(FixAtoms(indices=fixed_indices))
 
         self.images = self.setup_neb()
 
+    # ------------------------------------------------------------------
+    # Parameter file parsing
+    # ------------------------------------------------------------------
+
     @staticmethod
-    def _parse_parameters_file(params_path):
-        """
-        Parse neb_parameters.txt file.
+    def _parse_parameters_file(params_path: Path) -> dict:
+        """Parse neb_parameters.txt file into a parameter dictionary.
 
         Parameters
         ----------
         params_path : Path
-            Path to neb_parameters.txt
+            Path to neb_parameters.txt.
 
         Returns
         -------
         dict
-            Dictionary of parameters
-        """
-        params = {}
+            Parsed parameters.
 
-        with open(params_path, 'r') as f:
+        Raises
+        ------
+        ValueError
+            If required fields are missing.
+        """
+        params: dict = {}
+
+        key_parsers = {
+            "MLIP model": ("mlip", str),
+            "UMA task": ("uma_task", str),
+            "Initial": ("initial", str),
+            "Final": ("final", str),
+            "Intermediate images": ("num_images", int),
+            "Total images": ("total_images", int),
+            "IDPP fmax": ("interp_fmax", lambda v: None if v == "None" else float(v)),
+            "IDPP steps": ("interp_steps", lambda v: None if v == "None" else int(v)),
+            "Final fmax": ("fmax", float),
+            "Spring constant (k)": ("k", lambda v: None if v == "None" else float(v)),
+            "Climb": ("climb", lambda v: v.lower() == "true"),
+            "NEB optimizer": ("neb_optimizer", lambda v: v.lower() if v != "None" else None),
+            "NEB max steps": ("neb_max_steps", lambda v: None if v == "None" else int(v)),
+            "Optimize endpoints": ("optimize_endpoints", lambda v: v.lower() == "true"),
+            "Endpoint fmax": ("endpoint_fmax", lambda v: None if v == "None" else float(v)),
+            "Endpoint optimizer": ("endpoint_optimizer", lambda v: v.lower() if v != "None" else None),
+            "Endpoint max steps": ("endpoint_max_steps", lambda v: None if v == "None" else int(v)),
+            "Log file": ("log", str),
+            "Output dir": ("output_dir", str),
+        }
+
+        with open(params_path) as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('=') or line.startswith('NEB Run'):
+                if not line or line.startswith("=") or line.startswith("NEB Run"):
+                    continue
+                if ":" not in line:
                     continue
 
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    key = key.strip()
-                    value = value.strip()
+                key, value = line.split(":", 1)
+                key = key.strip()
+                value = value.strip()
 
-                    # Parse based on known keys
-                    if key == 'MLIP model':
-                        params['mlip'] = value
-                    elif key == 'UMA task':
-                        params['uma_task'] = value
-                    elif key == 'Initial':
-                        params['initial'] = value
-                    elif key == 'Final':
-                        params['final'] = value
-                    elif key == 'Intermediate images':
-                        params['num_images'] = int(value)
-                    elif key == 'Total images':
-                        params['total_images'] = int(value)
-                    elif key == 'IDPP fmax':
-                        params['interp_fmax'] = None if value == 'None' else float(value)
-                    elif key == 'IDPP steps':
-                        params['interp_steps'] = None if value == 'None' else int(value)
-                    elif key == 'Final fmax':
-                        params['fmax'] = float(value)
-                    elif key == 'Spring constant (k)':
-                        params['k'] = None if value == 'None' else float(value)
-                    elif key == 'Climb':
-                        params['climb'] = value.lower() == 'true'
-                    elif key == 'NEB optimizer':
-                        params['neb_optimizer'] = value.lower() if value != 'None' else None
-                    elif key == 'NEB max steps':
-                        params['neb_max_steps'] = None if value == 'None' else int(value)
-                    elif key == 'Optimize endpoints':
-                        params['optimize_endpoints'] = value.lower() == 'true'
-                    elif key == 'Endpoint fmax':
-                        params['endpoint_fmax'] = None if value == 'None' else float(value)
-                    elif key == 'Endpoint optimizer':
-                        params['endpoint_optimizer'] = value.lower() if value != 'None' else None
-                    elif key == 'Endpoint max steps':
-                        params['endpoint_max_steps'] = None if value == 'None' else int(value)
-                    elif key == 'Log file':
-                        params['log'] = value
-                    elif key == 'Output dir':
-                        params['output_dir'] = value
-                    elif key == 'Relax atoms':
-                        # Parse list format: [1, 2, 3]
-                        value = value.strip('[]')
-                        if value:
-                            params['relax_atoms'] = [int(x.strip()) for x in value.split(',')]
-                        else:
-                            params['relax_atoms'] = None
+                if key in key_parsers:
+                    param_name, converter = key_parsers[key]
+                    params[param_name] = converter(value)
+                elif key == "Relax atoms":
+                    value = value.strip("[]")
+                    if value:
+                        params["relax_atoms"] = [int(x.strip()) for x in value.split(",")]
+                    else:
+                        params["relax_atoms"] = None
 
-        # Validate required parameters
-        required = ['mlip', 'num_images', 'fmax']
+        required = ["mlip", "num_images", "fmax"]
         missing = [k for k in required if k not in params]
         if missing:
             raise ValueError(
@@ -155,353 +171,294 @@ class CustomNEB:
 
         return params
 
+    # ------------------------------------------------------------------
+    # Restart
+    # ------------------------------------------------------------------
+
     @classmethod
-    def load_from_restart(cls, output_dir='.', mlip=None, uma_task=None,
-                         fmax=None, logfile=None, k=None, climb=None,
-                         neb_optimizer=None, neb_max_steps=None):
-        """
-        Load a CustomNEB instance from existing restart files.
+    def load_from_restart(
+        cls,
+        output_dir: str | Path = ".",
+        mlip: Optional[str] = None,
+        uma_task: Optional[str] = None,
+        fmax: Optional[float] = None,
+        logfile: Optional[str] = None,
+        k: Optional[float] = None,
+        climb: Optional[bool] = None,
+        neb_optimizer: Optional[str] = None,
+        neb_max_steps: Optional[int] = None,
+    ) -> tuple["CustomNEB", dict]:
+        """Load a CustomNEB instance from existing restart files.
 
         Parameters
         ----------
         output_dir : str or Path
-            Directory containing A2B_full.traj and neb_parameters.txt
-        mlip : str, optional
-            Override MLIP model (warning shown if different from original)
-        uma_task : str, optional
-            Override UMA task
-        fmax : float, optional
-            Override force convergence threshold
-        logfile : str, optional
-            Override log file name
-        k : float, optional
-            Override spring constant
-        climb : bool, optional
-            Override climbing image setting
-        neb_optimizer : str, optional
-            Override optimizer
-        neb_max_steps : int, optional
-            Override max steps
+            Directory containing A2B_full.traj and neb_parameters.txt.
+        mlip, uma_task, fmax, logfile, k, climb, neb_optimizer, neb_max_steps
+            Optional overrides for the corresponding saved parameters.
 
         Returns
         -------
-        CustomNEB
-            Reconstructed NEB instance with loaded images
-        dict
-            Dictionary of loaded parameters from neb_parameters.txt
+        tuple[CustomNEB, dict]
+            Reconstructed NEB instance and loaded parameters dict.
         """
-        from pathlib import Path
-        from ase.io import read
-
         output_dir = Path(output_dir)
 
-        # 1. Verify required files exist
-        full_traj_path = output_dir / 'A2B_full.traj'
-        params_path = output_dir / 'neb_parameters.txt'
+        full_traj_path = output_dir / "A2B_full.traj"
+        params_path = output_dir / "neb_parameters.txt"
 
         if not full_traj_path.exists():
             raise FileNotFoundError(
                 f"Cannot restart: A2B_full.traj not found in {output_dir}\n"
                 "This file is required to load the previous NEB state."
             )
-
         if not params_path.exists():
             raise FileNotFoundError(
                 f"Cannot restart: neb_parameters.txt not found in {output_dir}\n"
                 "This file contains the structural parameters needed for restart."
             )
 
-        # 2. Parse neb_parameters.txt
         params = cls._parse_parameters_file(params_path)
-
-        # 3. Load last N images from A2B_full.traj
-        num_images = params['num_images']
+        num_images = params["num_images"]
         total_images = num_images + 2
 
         try:
-            # Read last total_images frames from trajectory
-            # Index format: '-N:' means last N frames
-            images = read(str(full_traj_path), index=f'-{total_images}:')
-
+            images = read(str(full_traj_path), index=f"-{total_images}:")
             if len(images) != total_images:
                 raise ValueError(
                     f"Expected {total_images} images but got {len(images)} "
-                    f"from A2B_full.traj. The trajectory may be corrupted."
+                    f"from A2B_full.traj."
                 )
         except Exception as e:
             raise RuntimeError(
                 f"Failed to load images from A2B_full.traj: {e}\n"
                 "The trajectory file may be corrupted or incomplete."
-            )
+            ) from e
 
-        # 4. Warn if MLIP changed
-        original_mlip = params['mlip']
+        original_mlip = params["mlip"]
         if mlip is not None and mlip != original_mlip:
-            print(f"\n⚠️  WARNING: MLIP changed from '{original_mlip}' to '{mlip}'")
-            print("   This will cause energy/force discontinuity in the NEB path.")
-            print("   The optimization will continue from the last geometry but with new forces.\n")
+            logger.warning(
+                "MLIP changed from '%s' to '%s'. This will cause energy/force "
+                "discontinuity in the NEB path.", original_mlip, mlip,
+            )
         else:
             mlip = original_mlip
 
-        # 5. Use overrides or defaults from parameters
-        uma_task = uma_task or params.get('uma_task', 'omat')
-        fmax = fmax if fmax is not None else params['fmax']
-        logfile = logfile or params.get('log', 'neb.log')
+        uma_task = uma_task or params.get("uma_task", "omat")
+        fmax = fmax if fmax is not None else params["fmax"]
+        logfile = logfile or params.get("log", "neb.log")
 
-        # 6. Create new instance with loaded images (bypass normal initialization)
+        # Build instance without calling __init__
         instance = cls.__new__(cls)
         instance.initial = images[0]
         instance.final = images[-1]
         instance.num_images = num_images
-        instance.interp_fmax = params.get('interp_fmax', 0.1)
-        instance.interp_steps = params.get('interp_steps', 100)
+        instance.interp_fmax = params.get("interp_fmax", 0.1)
+        instance.interp_steps = params.get("interp_steps", 100)
         instance.fmax = fmax
         instance.mlip = mlip
         instance.uma_task = uma_task
         instance.output_dir = output_dir
         instance.logfile = logfile
-        instance.relax_atoms = params.get('relax_atoms', None)
+        instance.relax_atoms = params.get("relax_atoms")
         instance._fix_atoms_constraint = None
-
-        # 7. Set loaded images directly (skip setup_neb)
         instance.images = images
 
-        # 8. Reapply constraints if relax_atoms was specified
         if instance.relax_atoms is not None:
-            from ase.constraints import FixAtoms
             all_indices = set(range(len(instance.initial)))
             fixed_indices = list(all_indices - set(instance.relax_atoms))
             constraint = FixAtoms(indices=fixed_indices)
-
-            # Apply to all images (including endpoints)
             for img in instance.images:
                 img.set_constraint(constraint)
-
-            # Store for potential later use
             instance._fix_atoms_constraint = constraint
 
         return instance, params
 
-    def setup_calculator(self, model=None, uma_task=None):
-        """
-        Setup calculator for the given MLIP model.
+    # ------------------------------------------------------------------
+    # Calculator
+    # ------------------------------------------------------------------
+
+    def setup_calculator(self, model: Optional[str] = None, uma_task: Optional[str] = None):
+        """Create and return an MLIP calculator.
 
         Parameters
         ----------
         model : str, optional
-            Model name. For UMA, use format "uma-s-1p1" or "uma-m-1p1".
+            Model name (default: ``self.mlip``).
         uma_task : str, optional
-            Task name for UMA models: "omat", "oc20", "omol", or "odac" (default: uses self.uma_task)
+            UMA task name (default: ``self.uma_task``).
+
+        Returns
+        -------
+        ASE calculator instance.
         """
         model = model or self.mlip
         uma_task = uma_task or self.uma_task
-        if model == '7net-mf-ompa':
+
+        if model == "7net-mf-ompa":
             from sevenn.calculator import SevenNetCalculator
-            return SevenNetCalculator(model, modal='mpa')
-        elif model == 'mace':
+            return SevenNetCalculator(model, modal="mpa")
+        elif model == "mace":
             from mace.calculators import mace_mp
             return mace_mp(model="medium", device="cpu")
-        elif model.startswith('uma-'):
-            from fairchem.core import pretrained_mlip, FAIRChemCalculator
+        elif model.startswith("uma-"):
+            from fairchem.core import FAIRChemCalculator, pretrained_mlip
             predictor = pretrained_mlip.get_predict_unit(model, device="cpu")
             return FAIRChemCalculator(predictor, task_name=uma_task)
         else:
             raise ValueError(f"Unknown model: {model}")
 
-    def optimize_endpoints(self, endpoint_fmax=0.01, optimizer='BFGS', max_steps=200):
-        """
-        Optimize initial and final structures before NEB calculation.
+    # ------------------------------------------------------------------
+    # Endpoint optimization
+    # ------------------------------------------------------------------
+
+    def optimize_endpoints(
+        self,
+        endpoint_fmax: float = 0.01,
+        optimizer: str = "BFGS",
+        max_steps: int = 200,
+    ) -> dict:
+        """Optimize initial and final structures before NEB.
 
         Parameters
         ----------
         endpoint_fmax : float
-            Force convergence threshold for endpoint optimization (default: 0.01 eV/Å)
+            Force convergence threshold (eV/Ang).
         optimizer : str
-            Optimizer to use: 'BFGS', 'LBFGS', 'FIRE' (default: 'BFGS')
+            Optimizer name: ``'BFGS'``, ``'LBFGS'``, ``'FIRE'``.
         max_steps : int
-            Maximum optimization steps (default: 200)
+            Maximum optimization steps.
 
         Returns
         -------
         dict
-            Dictionary with convergence status and energies
+            Results with ``'initial'``, ``'final'``, ``'reaction_energy'``,
+            and ``'similarity'`` keys.
         """
-        from ase.optimize import BFGS, LBFGS, FIRE
-        from ase.io.trajectory import Trajectory
+        from ase.optimize import BFGS, FIRE, LBFGS
 
-        optimizer_map = {
-            'bfgs': BFGS,
-            'lbfgs': LBFGS,
-            'fire': FIRE
-        }
+        opt_map = {"bfgs": BFGS, "lbfgs": LBFGS, "fire": FIRE}
+        opt_class = opt_map.get(optimizer.lower(), BFGS)
 
-        opt_class = optimizer_map.get(optimizer.lower(), BFGS)
+        logger.info("Optimizing endpoints (fmax=%.4f eV/Ang, optimizer=%s)", endpoint_fmax, optimizer)
 
-        print(f"\n🔧 Optimizing endpoints (fmax={endpoint_fmax} eV/Å, optimizer={optimizer})")
+        results: dict = {}
 
-        results = {}
+        for label, atoms, traj_name, log_name in [
+            ("initial", self.initial, "initial_opt.traj", "initial_opt.log"),
+            ("final", self.final, "final_opt.traj", "final_opt.log"),
+        ]:
+            logger.info("   Optimizing %s structure...", label)
+            atoms.calc = self.setup_calculator()
+            energy_before = atoms.get_potential_energy()
 
-        # Optimize initial structure
-        print("   Optimizing initial structure...")
-        initial_traj = self.output_dir / 'initial_opt.traj'
-        initial_log = self.output_dir / 'initial_opt.log'
+            opt = opt_class(
+                atoms,
+                trajectory=str(self.output_dir / traj_name),
+                logfile=str(self.output_dir / log_name),
+            )
+            opt.run(fmax=endpoint_fmax, steps=max_steps)
 
-        self.initial.calc = self.setup_calculator()
-        initial_energy_before = self.initial.get_potential_energy()
+            energy_after = atoms.get_potential_energy()
+            fmax_val = calc_fmax(atoms.get_forces())
+            converged = fmax_val <= endpoint_fmax
 
-        opt_initial = opt_class(self.initial, trajectory=str(initial_traj), logfile=str(initial_log))
-        opt_initial.run(fmax=endpoint_fmax, steps=max_steps)
+            results[label] = {
+                "converged": converged,
+                "energy_before": energy_before,
+                "energy_after": energy_after,
+                "energy_change": energy_after - energy_before,
+                "steps": opt.nsteps,
+            }
+            logger.info(
+                "      %s: %.6f -> %.6f eV (dE=%.6f, %d steps, %s)",
+                label, energy_before, energy_after,
+                energy_after - energy_before, opt.nsteps,
+                "converged" if converged else "NOT converged",
+            )
 
-        initial_energy_after = self.initial.get_potential_energy()
-        # Check convergence: fmax of last step should be <= endpoint_fmax
-        initial_forces = self.initial.get_forces()
-        initial_fmax = (initial_forces**2).sum(axis=1).max()**0.5
-        initial_converged = initial_fmax <= endpoint_fmax
+        reaction_energy = results["final"]["energy_after"] - results["initial"]["energy_after"]
+        logger.info("   Reaction energy: %.6f eV", reaction_energy)
+        results["reaction_energy"] = reaction_energy
 
-        results['initial'] = {
-            'converged': initial_converged,
-            'energy_before': initial_energy_before,
-            'energy_after': initial_energy_after,
-            'energy_change': initial_energy_after - initial_energy_before,
-            'steps': opt_initial.nsteps
-        }
+        if not results["initial"]["converged"] or not results["final"]["converged"]:
+            logger.warning("One or both endpoints did not converge!")
 
-        print(f"      ✓ Initial: {initial_energy_before:.6f} → {initial_energy_after:.6f} eV "
-              f"(ΔE = {initial_energy_after - initial_energy_before:.6f} eV, "
-              f"{opt_initial.nsteps} steps, {'converged' if initial_converged else 'NOT converged'})")
-
-        # Optimize final structure
-        print("   Optimizing final structure...")
-        final_traj = self.output_dir / 'final_opt.traj'
-        final_log = self.output_dir / 'final_opt.log'
-
-        self.final.calc = self.setup_calculator()
-        final_energy_before = self.final.get_potential_energy()
-
-        opt_final = opt_class(self.final, trajectory=str(final_traj), logfile=str(final_log))
-        opt_final.run(fmax=endpoint_fmax, steps=max_steps)
-
-        final_energy_after = self.final.get_potential_energy()
-        # Check convergence: fmax of last step should be <= endpoint_fmax
-        final_forces = self.final.get_forces()
-        final_fmax = (final_forces**2).sum(axis=1).max()**0.5
-        final_converged = final_fmax <= endpoint_fmax
-
-        results['final'] = {
-            'converged': final_converged,
-            'energy_before': final_energy_before,
-            'energy_after': final_energy_after,
-            'energy_change': final_energy_after - final_energy_before,
-            'steps': opt_final.nsteps
-        }
-
-        print(f"      ✓ Final: {final_energy_before:.6f} → {final_energy_after:.6f} eV "
-              f"(ΔE = {final_energy_after - final_energy_before:.6f} eV, "
-              f"{opt_final.nsteps} steps, {'converged' if final_converged else 'NOT converged'})")
-
-        # Update reaction energy
-        reaction_energy = final_energy_after - initial_energy_after
-        print(f"   Reaction energy: {reaction_energy:.6f} eV\n")
-
-        results['reaction_energy'] = reaction_energy
-
-        if not initial_converged or not final_converged:
-            print("   ⚠️  WARNING: One or both endpoints did not converge!")
-            print("      Consider increasing max_steps or endpoint_fmax\n")
-
-        # Check structural similarity between optimized endpoints
-        similarity_check = self._check_endpoint_similarity()
-        results['similarity'] = similarity_check
-
+        results["similarity"] = self._check_endpoint_similarity()
         return results
 
-    def _check_endpoint_similarity(self, displacement_threshold=0.5, energy_threshold=0.02):
-        """
-        Check if initial and final structures are too similar after optimization.
-
-        This helps detect cases where one endpoint relaxed to the other configuration,
-        which would result in a trivial NEB calculation.
+    def _check_endpoint_similarity(
+        self,
+        displacement_threshold: float = 0.5,
+        energy_threshold: float = 0.02,
+    ) -> dict:
+        """Check if initial and final structures are too similar after optimization.
 
         Parameters
         ----------
         displacement_threshold : float
-            Threshold in Angstroms for max displacement warning (default: 0.5 Å)
+            Max displacement threshold (Ang).
         energy_threshold : float
-            Threshold in eV for energy difference warning (default: 0.02 eV)
+            Energy difference threshold (eV).
 
         Returns
         -------
         dict
-            Dictionary with displacement statistics and warning flags
+            Displacement statistics and warning flags.
         """
-        from ase.geometry import find_mic
+        logger.info("Checking endpoint similarity...")
 
-        print("🔍 Checking endpoint similarity...")
-
-        # Calculate displacements with MIC
         disp = self.final.get_positions() - self.initial.get_positions()
         mic_disp, mic_dist = find_mic(disp, self.initial.cell, pbc=True)
 
-        # Displacement statistics
-        avg_displacement = mic_dist.mean()
-        max_displacement = mic_dist.max()
-        max_disp_atom = mic_dist.argmax()
-        min_displacement = mic_dist.min()
-
-        # Energy difference
+        avg_displacement = float(mic_dist.mean())
+        max_displacement = float(mic_dist.max())
+        max_disp_atom = int(mic_dist.argmax())
+        min_displacement = float(mic_dist.min())
         energy_diff = abs(self.final.get_potential_energy() - self.initial.get_potential_energy())
 
-        # Print statistics
-        print(f"   Average displacement: {avg_displacement:.3f} Å")
-        print(f"   Max displacement:     {max_displacement:.3f} Å (atom {max_disp_atom})")
-        print(f"   Min displacement:     {min_displacement:.3f} Å")
-        print(f"   Energy difference:    {energy_diff:.6f} eV")
+        logger.info("   Avg displacement: %.3f Ang", avg_displacement)
+        logger.info("   Max displacement: %.3f Ang (atom %d)", max_displacement, max_disp_atom)
+        logger.info("   Energy difference: %.6f eV", energy_diff)
 
-        # Check for warnings
-        similar_energy = False
-        similar_geom = False
         warning_reasons = []
-
-        #if avg_displacement < displacement_threshold:
-        #    is_similar = True
-        #    warning_reasons.append(f"average displacement ({avg_displacement:.3f} Å) < {displacement_threshold} Å")
-
         if energy_diff < energy_threshold:
-            similar_energy = True
-            warning_reasons.append(f"energy difference ({energy_diff:.6f} eV) < {energy_threshold} eV")
+            warning_reasons.append(
+                f"energy difference ({energy_diff:.6f} eV) < {energy_threshold} eV"
+            )
+        if max_displacement < displacement_threshold:
+            warning_reasons.append(
+                f"max displacement ({max_displacement:.3f} Ang) < {displacement_threshold} Ang"
+            )
 
-        if max_displacement < displacement_threshold:  # If even the max displacement is small
-            similar_geom = True
-            warning_reasons.append(f"max displacement ({max_displacement:.3f} Å) < {displacement_threshold} Å")
-
-        if similar_energy or similar_geom:
-            print(f"\n   ⚠️  WARNING: Either the energy or geometry of the endpoints is too similar!")
-            print(f"   This may indicate that one endpoint relaxed to the other configuration.")
-            print(f"   Reasons:")
-            for reason in warning_reasons:
-                print(f"      - {reason}")
-            print(f"\n   Recommendation:")
-            print(f"      - Check if initial and final structures are actually different")
-            print(f"      - Consider using --optimize-endpoints=False if structures are pre-optimized")
-            print(f"      - Verify that you have the correct initial/final configurations\n")
+        is_similar = bool(warning_reasons)
+        if is_similar:
+            logger.warning("Endpoints may be too similar: %s", "; ".join(warning_reasons))
         else:
-            print(f"   ✓ Endpoints are sufficiently different\n")
+            logger.info("   Endpoints are sufficiently different")
 
         return {
-            'avg_displacement': avg_displacement,
-            'max_displacement': max_displacement,
-            'max_disp_atom': int(max_disp_atom),
-            'min_displacement': min_displacement,
-            'energy_diff': energy_diff,
-            'is_similar': similar_energy or similar_geom,
-            'warning_reasons': warning_reasons
+            "avg_displacement": avg_displacement,
+            "max_displacement": max_displacement,
+            "max_disp_atom": max_disp_atom,
+            "min_displacement": min_displacement,
+            "energy_diff": energy_diff,
+            "is_similar": is_similar,
+            "warning_reasons": warning_reasons,
         }
 
-    def setup_neb(self):
-        """Setup NEB image list."""
-        # num_images is the number of INTERMEDIATE images (not including initial/final)
-        from ase.constraints import FixAtoms
+    # ------------------------------------------------------------------
+    # NEB setup & interpolation
+    # ------------------------------------------------------------------
 
+    def setup_neb(self) -> list:
+        """Set up NEB image list with linear interpolation.
+
+        Returns
+        -------
+        list[ase.Atoms]
+            List of images (initial + intermediates + final).
+        """
         images = [self.initial]
         images += [self.initial.copy() for _ in range(self.num_images)]
         images += [self.final]
@@ -514,274 +471,266 @@ class CustomNEB:
                 break
 
         # Remove FixAtoms from intermediate images to allow interpolation
-        # Keep all other constraints (Hookean, etc.)
         for img in images[1:-1]:
-            non_fix_constraints = [c for c in img.constraints if not isinstance(c, FixAtoms)]
-            img.set_constraint(non_fix_constraints)
+            non_fix = [c for c in img.constraints if not isinstance(c, FixAtoms)]
+            img.set_constraint(non_fix)
 
-        # Use ASE's built-in interpolate method (handles MIC automatically)
         neb_temp = NEB(images)
-        neb_temp.interpolate(method='linear', mic=True)
+        neb_temp.interpolate(method="linear", mic=True)
 
-        # If relax_atoms is specified, we want "linear interpolation" + "fixed atoms"
-        # Since we just did linear interpolation above, now we fix the NON-relaxed atoms.
+        # Re-apply FixAtoms for highly-constrained mode
         if self.relax_atoms is not None:
-             fix_indices = [i for i in range(len(self.initial)) if i not in self.relax_atoms]
-             constraint = FixAtoms(indices=fix_indices)
-             for img in images[1:-1]:
-                 # We likely want to add to existing constraints (Hookean etc), but we removed FixAtoms earlier.
-                 # So we append this new FixAtoms constraint.
-                 current_constraints = list(img.constraints)
-                 current_constraints.append(constraint)
-                 img.set_constraint(current_constraints)
+            fix_indices = [i for i in range(len(self.initial)) if i not in self.relax_atoms]
+            constraint = FixAtoms(indices=fix_indices)
+            for img in images[1:-1]:
+                current = list(img.constraints)
+                current.append(constraint)
+                img.set_constraint(current)
 
         return images
 
-    def interpolate_idpp(self):
-        """Run IDPP interpolation and restore FixAtoms constraints after."""
+    def interpolate_idpp(self) -> None:
+        """Run IDPP interpolation and restore FixAtoms constraints after.
+
+        Also checks for unreasonable atomic distances after interpolation
+        using asetools if available.
+        """
         if self.relax_atoms is not None:
-            print("Skipping IDPP interpolation because relax_atoms is specified (highly-constraint mode).")
+            logger.info("Skipping IDPP interpolation (highly-constrained mode).")
             return
 
-        traj_path = self.output_dir / 'idpp.traj'
-        log_path = self.output_dir / 'idpp.log'
-        idpp_interpolate(self.images, traj=str(traj_path), log=str(log_path),
-                         fmax=self.interp_fmax, mic=True, steps=self.interp_steps)
+        traj_path = self.output_dir / "idpp.traj"
+        log_path = self.output_dir / "idpp.log"
+        idpp_interpolate(
+            self.images, traj=str(traj_path), log=str(log_path),
+            fmax=self.interp_fmax, mic=True, steps=self.interp_steps,
+        )
 
         # Restore FixAtoms constraints to intermediate images after IDPP
         if self._fix_atoms_constraint is not None:
-            for img in self.images[1:-1]:  # Skip initial and final
-                # Add FixAtoms back to existing constraints
-                current_constraints = list(img.constraints)
-                current_constraints.append(self._fix_atoms_constraint)
-                img.set_constraint(current_constraints)
+            for img in self.images[1:-1]:
+                current = list(img.constraints)
+                current.append(self._fix_atoms_constraint)
+                img.set_constraint(current)
 
-    def run_neb(self, optimizer=FIRE, trajectory='A2B.traj', full_traj='A2B_full.traj', climb=False, max_steps=600):
+        # Check atomic distances after interpolation (if asetools is available)
+        self._check_interpolation_sanity()
+
+    def _check_interpolation_sanity(self) -> None:
+        """Check for unreasonable atomic distances in interpolated images."""
+        try:
+            from asetools.pathways.neb import check_atomic_distances
+        except ImportError:
+            return
+
+        for image_index, img in enumerate(self.images[1:-1], start=1):
+            close_pairs = check_atomic_distances(img)
+            if close_pairs:
+                logger.warning(
+                    "Image %d has %d atom pair(s) too close after interpolation:",
+                    image_index, len(close_pairs),
+                )
+                for atom_i, atom_j, dist, threshold in close_pairs:
+                    logger.warning(
+                        "   atoms %d-%d: %.3f Ang (threshold: %.3f Ang)",
+                        atom_i, atom_j, dist, threshold,
+                    )
+
+    # ------------------------------------------------------------------
+    # NEB run
+    # ------------------------------------------------------------------
+
+    def run_neb(
+        self,
+        optimizer=FIRE,
+        trajectory: str = "A2B.traj",
+        full_traj: str = "A2B_full.traj",
+        climb: bool = False,
+        max_steps: int = 600,
+    ) -> list:
+        """Run NEB optimization.
+
+        Parameters
+        ----------
+        optimizer : ASE optimizer class
+            Optimizer to use.
+        trajectory : str
+            Name of the final trajectory file.
+        full_traj : str
+            Name of the full trajectory (all steps).
+        climb : bool
+            Enable climbing image NEB.
+        max_steps : int
+            Maximum number of optimization steps.
+
+        Returns
+        -------
+        list[ase.Atoms]
+            Optimized NEB images.
+        """
         neb = NEB(self.images, climb=climb)
         for image in self.images:
             image.calc = self.setup_calculator()
 
         full_traj_path = self.output_dir / full_traj
-        traj_writer = Trajectory(str(full_traj_path), 'w')
+        traj_writer = Trajectory(str(full_traj_path), "w")
 
-        # Setup log file
+        log_data = {"step": [], "fmax(eV/A)": [], "barrier(eV)": []}
+
         log_path = self.output_dir / self.logfile
-        log_file = open(log_path, 'w')
+        with open(log_path, "w") as log_file:
 
-        # Data collection for convergence tracking
-        log_data = {
-            "step": [],
-            "fmax(eV/A)": [],
-            "barrier(eV)": [],
-        }
+            def log_iteration():
+                step = opt.nsteps
+                neb_forces = neb.get_forces()
+                fmax_val = calc_fmax(neb_forces)
 
-        def log_iteration():
-            """Callback to log each NEB iteration"""
-            step = opt.nsteps
-            # Get the NEB forces (this includes spring forces and is what the optimizer sees)
-            # We need to get the forces from the NEB object's get_forces() method
-            neb_forces = neb.get_forces()
-            # Calculate fmax from the NEB forces (not individual image forces)
-            fmax = (neb_forces**2).sum(axis=1).max()**0.5
+                energies = [img.get_potential_energy() for img in neb.images]
+                barrier = max(energies) - energies[0]
 
-            # Get energies
-            energies = [img.get_potential_energy() for img in neb.images]
-            initial_energy = energies[0]
-            max_energy = max(energies)
-            barrier_height = max_energy - initial_energy
+                log_file.write(
+                    f"Step {step:4d}  Fmax: {fmax_val:.6f} eV/A  Barrier: {barrier:.6f} eV\n"
+                )
+                log_file.flush()
 
-            # Write to log file
-            log_file.write(f"Step {step:4d}  Fmax: {fmax:.6f} eV/A  Barrier: {barrier_height:.6f} eV\n")
-            log_file.flush()
+                log_data["step"].append(step)
+                log_data["fmax(eV/A)"].append(fmax_val)
+                log_data["barrier(eV)"].append(barrier)
 
-            # Store data
-            log_data["step"].append(step)
-            log_data["fmax(eV/A)"].append(fmax)
-            log_data["barrier(eV)"].append(barrier_height)
+                for img in neb.images:
+                    traj_writer.write(img)
 
-            # Write trajectory
-            for img in neb.images:
-                traj_writer.write(img)
+            opt = optimizer(neb, logfile=log_file)
+            opt.attach(log_iteration, interval=1)
+            opt.run(fmax=self.fmax, steps=max_steps)
 
-        opt = optimizer(neb, logfile=log_file)
-        opt.attach(log_iteration, interval=1)
-        opt.run(fmax=self.fmax, steps=max_steps)
-
-        log_file.close()
         traj_writer.close()
 
-        # Save convergence data to CSV
-        csv_path = self.output_dir / 'neb_convergence.csv'
+        # Save convergence data
+        csv_path = self.output_dir / "neb_convergence.csv"
         df_conv = pd.DataFrame(log_data)
         df_conv.to_csv(csv_path, index=False)
-
-        # Plot convergence
         self._plot_convergence(df_conv)
 
+        # Ensure final energies are computed
         for image in self.images:
             image.get_potential_energy()
 
         traj_path = self.output_dir / trajectory
-        with Trajectory(str(traj_path), 'w') as traj:
+        with Trajectory(str(traj_path), "w") as traj:
             for img in self.images:
                 traj.write(img)
 
         return self.images
 
-    def run_autoneb(self, n_simul=1, n_max=9, k=0.1, climb=True,
-                    optimizer=FIRE, space_energy_ratio=0.5,
-                    interpolate_method='idpp', maxsteps=10000, prefix='autoneb'):
-        """
-        Run AutoNEB calculation.
+    # ------------------------------------------------------------------
+    # AutoNEB
+    # ------------------------------------------------------------------
+
+    def run_autoneb(
+        self,
+        n_simul: int = 1,
+        n_max: int = 9,
+        k: float = 0.1,
+        climb: bool = True,
+        optimizer=FIRE,
+        space_energy_ratio: float = 0.5,
+        interpolate_method: str = "idpp",
+        maxsteps: int = 10000,
+        prefix: str = "autoneb",
+    ) -> None:
+        """Run AutoNEB calculation.
 
         Parameters
         ----------
         n_simul : int
-            Number of parallel relaxations (default: 1). Requires MPI for n_simul > 1
+            Number of parallel relaxations.
         n_max : int
-            Target number of images including endpoints (default: 9)
+            Target number of images including endpoints.
         k : float
-            Spring constant (default: 0.1)
+            Spring constant.
         climb : bool
-            Enable climbing image NEB (default: True)
+            Enable climbing image.
         optimizer : ASE optimizer class
-            Optimizer to use (default: FIRE)
+            Optimizer to use.
         space_energy_ratio : float
-            Preference for geometric (1.0) vs energy (0.0) gaps when inserting images (default: 0.5)
+            Preference for geometric (1.0) vs energy (0.0) gaps.
         interpolate_method : str
-            Interpolation method: 'linear' or 'idpp' (default: 'idpp')
+            ``'linear'`` or ``'idpp'``.
         maxsteps : int
-            Maximum number of steps per relaxation (default: 10000)
+            Maximum steps per relaxation.
         prefix : str
-            Prefix for AutoNEB output files (default: 'autoneb')
-
-        Returns
-        -------
-        None
-            AutoNEB manages files directly. Check output_dir for results.
-
-        Notes
-        -----
-        - AutoNEB uses its own file-based I/O with prefix naming (prefix000.traj, prefix001.traj, etc.)
-        - Custom convergence tracking (CSV/PNG) is not available in AutoNEB mode
-        - Results are stored in AutoNEB_iter/ folder
-        - Highly-constrained mode (relax_atoms) may not be fully compatible with AutoNEB
+            Prefix for output files.
         """
-        import os
-
         if self.relax_atoms is not None:
-            print("⚠️  WARNING: AutoNEB with relax_atoms (highly-constrained mode) may not work as expected.")
-            print("   Consider using standard NEB for constrained calculations.")
+            logger.warning("AutoNEB with relax_atoms (highly-constrained mode) may not work as expected.")
 
-        # Change to output directory so AutoNEB writes files there
         original_cwd = os.getcwd()
         os.chdir(self.output_dir)
 
-        # Clean up any existing AutoNEB files to avoid conflicts
-        import glob
+        # Clean up previous AutoNEB files
         for old_file in glob.glob(f"{prefix}*.traj"):
             os.remove(old_file)
         if os.path.exists("AutoNEB_iter"):
-            import shutil
             shutil.rmtree("AutoNEB_iter")
 
         try:
-            # Create calculator attachment function
             def attach_calculators(images):
-                """Attach calculators to all images"""
                 for image in images:
                     image.calc = self.setup_calculator()
 
-            # Prepare initial images (just start and end for AutoNEB)
-            # AutoNEB will dynamically add intermediate images
-
-            # IMPORTANT: Wrap final structure to ensure MIC is respected
-            # This ensures the diffusing atom takes the shortest path across periodic boundaries
-            from ase.geometry import find_mic
-            import numpy as np
-
+            # Wrap final structure for MIC
             final_wrapped = self.final.copy()
-
-            # Calculate displacement with MIC
             disp = final_wrapped.get_positions() - self.initial.get_positions()
             mic_disp, mic_dist = find_mic(disp, self.initial.cell, pbc=True)
-
-            # Apply MIC-corrected positions to final structure
             final_wrapped.set_positions(self.initial.get_positions() + mic_disp)
 
-            # Check if wrapping made a difference
             max_diff = np.max(np.abs(disp - mic_disp))
             if max_diff > 0.1:
-                print(f"   ✓ Applied MIC wrapping (max correction: {max_diff:.3f} Å)")
+                logger.info("Applied MIC wrapping (max correction: %.3f Ang)", max_diff)
 
             initial_images = [self.initial, final_wrapped]
-
-            # Attach calculators and calculate energies for initial images
-            # This is required so AutoNEB doesn't crash with NaN energies
             for img in initial_images:
                 img.calc = self.setup_calculator()
-                img.get_potential_energy()  # Force energy calculation
+                img.get_potential_energy()
 
-            # Write initial images to trajectory files
-            from ase.io import write as ase_write
             for i, img in enumerate(initial_images):
-                ase_write(f"{prefix}{i:03d}.traj", img)
+                write(f"{prefix}{i:03d}.traj", img)
 
-            print(f"\n🤖 Starting AutoNEB calculation")
-            print(f"   n_max: {n_max} images (including endpoints)")
-            print(f"   n_simul: {n_simul} parallel relaxations")
-            print(f"   fmax: {self.fmax} eV/Å")
-            print(f"   climb: {climb}")
-            print(f"   optimizer: {optimizer.__name__}")
-            print(f"   space_energy_ratio: {space_energy_ratio}")
-            print(f"   interpolate_method: {interpolate_method}")
-            print(f"   Output directory: {self.output_dir.resolve()}\n")
+            logger.info("Starting AutoNEB (n_max=%d, fmax=%.4f, climb=%s)", n_max, self.fmax, climb)
 
-            # Create AutoNEB object
             autoneb = AutoNEB(
-                attach_calculators=attach_calculators,
-                prefix=prefix,
-                n_simul=n_simul,
-                n_max=n_max,
-                fmax=self.fmax,
-                maxsteps=maxsteps,
-                k=k,
-                climb=climb,
-                optimizer=optimizer,
+                attach_calculators=attach_calculators, prefix=prefix,
+                n_simul=n_simul, n_max=n_max, fmax=self.fmax,
+                maxsteps=maxsteps, k=k, climb=climb, optimizer=optimizer,
                 space_energy_ratio=space_energy_ratio,
-                interpolate_method=interpolate_method
+                interpolate_method=interpolate_method,
             )
-
-            # Run AutoNEB
             autoneb.run()
 
-            print("\n✅ AutoNEB calculation complete")
-            print(f"   Output files in: {self.output_dir.resolve()}")
-            print(f"   - {prefix}*.traj: Individual image trajectories")
-            print(f"   - AutoNEB_iter/: Iteration history folder")
-
+            logger.info("AutoNEB calculation complete")
         finally:
-            # Return to original directory
             os.chdir(original_cwd)
 
-    def _plot_convergence(self, df):
-        """Plot NEB convergence (force and max energy vs steps)"""
-        fig_path = self.output_dir / "neb_convergence.png"
+    # ------------------------------------------------------------------
+    # Post-processing
+    # ------------------------------------------------------------------
 
+    def _plot_convergence(self, df: pd.DataFrame) -> None:
+        """Plot NEB convergence (force and barrier vs steps)."""
+        fig_path = self.output_dir / "neb_convergence.png"
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
 
-        # Force convergence
-        ax1.plot(df["step"], df["fmax(eV/A)"], marker='o', markersize=4, linewidth=1.5, color='orange')
-        ax1.axhline(y=self.fmax, color='r', linestyle='--', label=f'fmax target = {self.fmax}')
+        ax1.plot(df["step"], df["fmax(eV/A)"], marker="o", markersize=4, linewidth=1.5, color="orange")
+        ax1.axhline(y=self.fmax, color="r", linestyle="--", label=f"fmax target = {self.fmax}")
         ax1.set_xlabel("NEB Step")
-        ax1.set_ylabel("Max Force (eV/Å)")
+        ax1.set_ylabel("Max Force (eV/Ang)")
         ax1.set_title("NEB Force Convergence")
         ax1.legend()
         ax1.grid(True, alpha=0.3)
-        ax1.set_yscale('log')
+        ax1.set_yscale("log")
 
-        # Barrier height evolution
-        ax2.plot(df["step"], df["barrier(eV)"], marker='o', markersize=4, linewidth=1.5)
+        ax2.plot(df["step"], df["barrier(eV)"], marker="o", markersize=4, linewidth=1.5)
         ax2.set_xlabel("NEB Step")
         ax2.set_ylabel("Barrier Height (eV)")
         ax2.set_title("Barrier Height Evolution")
@@ -791,20 +740,35 @@ class CustomNEB:
         plt.savefig(fig_path, dpi=150)
         plt.close()
 
-    def process_results(self):
-        results = {'i': [], 'e': []}
-        for i, image in enumerate(self.images):
-            results['i'].append(i)
-            results['e'].append(image.get_potential_energy())
+    def process_results(self) -> pd.DataFrame:
+        """Extract energies from NEB images and save to CSV.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with columns ``'image_index'``, ``'energy'``, ``'relative_energy'``.
+        """
+        results = {"image_index": [], "energy": []}
+        for image_index, image in enumerate(self.images):
+            results["image_index"].append(image_index)
+            results["energy"].append(image.get_potential_energy())
+
         df = pd.DataFrame(results)
-        df['rel_e'] = df['e'] - df['e'].iloc[0]  # Reference to initial structure
+        df["relative_energy"] = df["energy"] - df["energy"].iloc[0]
         df.to_csv(self.output_dir / "neb_data.csv", index=False)
         return df
 
-    def plot_results(self, df):
+    def plot_results(self, df: pd.DataFrame) -> None:
+        """Plot NEB energy profile.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame from :meth:`process_results`.
+        """
         fig_path = self.output_dir / "neb_energy.png"
-        x = df['i']
-        y = df['rel_e']
+        x = df["image_index"]
+        y = df["relative_energy"]
 
         x_smooth = np.linspace(x.min(), x.max(), 200)
         spline = make_interp_spline(x, y, k=3)
@@ -819,20 +783,22 @@ class CustomNEB:
         plt.grid(True)
 
         barrier = y.max()
-        barrier_index = y.idxmax()
-        plt.annotate(f"Barrier: {barrier:.3f} eV",
-                     xy=(x[barrier_index], barrier),
-                     xytext=(x[barrier_index], barrier + 0.1),
-                     arrowprops=dict(arrowstyle="->"),
-                     fontsize=9)
+        barrier_idx = y.idxmax()
+        plt.annotate(
+            f"Barrier: {barrier:.3f} eV",
+            xy=(x[barrier_idx], barrier),
+            xytext=(x[barrier_idx], barrier + 0.1),
+            arrowprops=dict(arrowstyle="->"),
+            fontsize=9,
+        )
 
         plt.tight_layout()
         plt.savefig(fig_path)
         plt.close()
 
-    def export_poscars(self):
-        from ase.io.vasp import write_vasp
-        for i, image in enumerate(self.images):
-            folder = self.output_dir / f"{i:02d}"
+    def export_poscars(self) -> None:
+        """Export NEB images as VASP POSCAR files in numbered directories."""
+        for image_index, image in enumerate(self.images):
+            folder = self.output_dir / f"{image_index:02d}"
             folder.mkdir(exist_ok=True)
             write_vasp(folder / "POSCAR", image, direct=True, vasp5=True, sort=True)

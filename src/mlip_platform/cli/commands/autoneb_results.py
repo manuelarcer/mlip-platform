@@ -1,11 +1,14 @@
+"""AutoNEB results extraction CLI command."""
+import glob
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import typer
 from ase.io import read
-import pandas as pd
-import matplotlib.pyplot as plt
-from scipy.interpolate import make_interp_spline
-import numpy as np
 from ase.io.vasp import write_vasp
+from scipy.interpolate import make_interp_spline
 
 app = typer.Typer()
 
@@ -32,7 +35,6 @@ def results(
         raise typer.Exit(code=1)
 
     # Find all trajectory files
-    import glob
     traj_files = sorted(glob.glob(str(directory / f"{prefix}*.traj")))
 
     if not traj_files:
@@ -58,8 +60,8 @@ def results(
             energy = image.get_potential_energy()
             results['image'].append(i)
             results['energy'].append(energy)
-        except Exception as e:
-            typer.echo(f"⚠️  Warning: Could not get energy for image {i}: {e}")
+        except (RuntimeError, ValueError) as e:
+            typer.echo(f"Warning: Could not get energy for image {i}: {e}")
 
     # Create dataframe
     df = pd.DataFrame(results)
