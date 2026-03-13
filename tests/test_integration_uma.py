@@ -19,7 +19,7 @@ def uma_atoms(tmp_workdir):
     atoms = bulk("Cu", "fcc", a=3.6) * (2, 2, 2)
     vasp_path = tmp_workdir / "POSCAR"
     write(str(vasp_path), atoms, format="vasp")
-    atoms = setup_calculator(atoms, "uma-s-1p1", "omat")
+    atoms = setup_calculator(atoms, "uma-s-1p2", "omat")
     return atoms, vasp_path
 
 
@@ -60,7 +60,7 @@ class TestNEBUMA:
 
         neb = CustomNEB(
             initial=initial, final=final, num_images=3,
-            mlip="uma-s-1p1", uma_task="omat",
+            mlip="uma-s-1p2", uma_task="omat",
             output_dir=tmp_workdir,
         )
         assert len(neb.images) == 5

@@ -28,7 +28,7 @@ class TestDetectMlip:
 
     @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", True)
     def test_prefers_uma(self):
-        assert detect_mlip() == "uma-s-1p1"
+        assert detect_mlip() == "uma-s-1p2"
 
     @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
     @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", True)

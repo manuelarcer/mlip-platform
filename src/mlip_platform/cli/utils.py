@@ -63,7 +63,7 @@ def detect_mlip() -> str:
         If no supported MLIP is found.
     """
     if FAIRCHEM_AVAILABLE:
-        return "uma-s-1p1"
+        return "uma-s-1p2"
     elif SEVENN_AVAILABLE:
         return "7net-mf-ompa"
     elif MACE_AVAILABLE:
@@ -98,7 +98,7 @@ def validate_mlip(mlip: str) -> None:
         raise typer.Exit("UMA not available. Install with: pip install fairchem-core")
     elif not (mlip in ["mace", "7net-mf-ompa"] or mlip.startswith("uma-")):
         raise typer.Exit(
-            f"Unknown MLIP: {mlip}. Use 'uma-s-1p1', 'uma-m-1p1', 'mace', or '7net-mf-ompa'."
+            f"Unknown MLIP: {mlip}. Use 'uma-s-1p2', 'uma-s-1p1', 'uma-m-1p1', 'mace', or '7net-mf-ompa'."
         )
 
 
