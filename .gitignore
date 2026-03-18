@@ -56,3 +56,6 @@ dist/
 # CLI or temp command data
 command_cache.*
 command_history.*
+
+# Claude Code logs
+.claude/logs/
