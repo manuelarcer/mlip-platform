@@ -19,7 +19,7 @@ def run(
     n_max: int = typer.Option(9, help="Maximum number of images (including endpoints)"),
     n_simul: int = typer.Option(1, help="Number of parallel relaxations (requires MPI for n_simul > 1)"),
     fmax: float = typer.Option(0.05, help="Force convergence threshold (eV/Ang)"),
-    mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
+    mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p2' (default), 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
     uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
     climb: bool = typer.Option(True, help="Enable climbing image NEB"),
     k: float = typer.Option(0.1, help="Spring constant"),

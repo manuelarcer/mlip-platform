@@ -26,7 +26,7 @@ def run(
     taup: float = typer.Option(1000.0, help="Berendsen pressure coupling time (fs)"),
 
     # MLIP options
-    mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
+    mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p2' (default), 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
     uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)")
 ):
     """

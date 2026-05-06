@@ -312,7 +312,7 @@ def run(
     interp_fmax: float = typer.Option(None, help="IDPP interpolation fmax"),
     interp_steps: int = typer.Option(None, help="IDPP interpolation steps"),
     fmax: float = typer.Option(None, help="Final NEB force threshold"),
-    mlip: str = typer.Option(None, help="MLIP model: 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
+    mlip: str = typer.Option(None, help="MLIP model: 'uma-s-1p2' (default), 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
     uma_task: str = typer.Option(None, help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
     relax_atoms: str = typer.Option(None, help="Comma-separated list of atom indices to relax (e.g. '0,1,5'). If set, others are fixed."),
     log: str = typer.Option(None, help="Name for the NEB iteration log file (default: neb.log)"),
