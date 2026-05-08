@@ -23,6 +23,20 @@ OPTIMIZER_MAP = {
 }
 
 
+def _wrap_for_cell_relaxation(atoms):
+    """Wrap atoms with a cell filter so the optimizer sees cell DOFs too.
+
+    Prefers ASE 3.23+'s :class:`ase.filters.FrechetCellFilter` (better-behaved
+    for soft modes); falls back to :class:`ase.constraints.ExpCellFilter` on
+    older ASE.
+    """
+    try:
+        from ase.filters import FrechetCellFilter as _Filter
+    except ImportError:
+        from ase.constraints import ExpCellFilter as _Filter
+    return _Filter(atoms)
+
+
 def run_optimization(
     atoms,
     optimizer: str = "bfgs",
@@ -33,6 +47,7 @@ def run_optimization(
     output_dir: str | Path = ".",
     model_name: str = "mlip",
     verbose: bool = True,
+    relax_cell: bool = False,
 ) -> bool:
     """Run geometry optimization on an ASE Atoms object.
 
@@ -44,7 +59,9 @@ def run_optimization(
         Optimizer algorithm: ``'fire'``, ``'bfgs'``, ``'lbfgs'``,
         ``'bfgsls'``, ``'gpmin'``, ``'mdmin'``.
     fmax : float
-        Force convergence criterion (eV/Ang).
+        Force convergence criterion (eV/Ang). When ``relax_cell=True`` the
+        criterion is applied to the combined atomic forces + cell virials
+        emitted by the cell filter.
     max_steps : int
         Maximum number of optimization steps.
     trajectory : str or Path
@@ -57,6 +74,10 @@ def run_optimization(
         Name of MLIP model for parameter file.
     verbose : bool
         If True, show optimization progress table.
+    relax_cell : bool
+        If True, also relax the simulation cell (positions + cell, like VASP
+        ISIF=3). Uses ``ase.filters.FrechetCellFilter`` when available,
+        otherwise ``ase.constraints.ExpCellFilter``.
 
     Returns
     -------
@@ -88,6 +109,10 @@ def run_optimization(
 
     OptimizerClass = OPTIMIZER_MAP[optimizer_name]
 
+    # When relax_cell, the optimizer sees the filtered object (atoms + cell
+    # DOFs). Trajectory frames are still written from the underlying atoms.
+    opt_target = _wrap_for_cell_relaxation(atoms) if relax_cell else atoms
+
     traj = Trajectory(str(traj_file), "w", atoms)
 
     log_data = {"step": [], "energy(eV)": [], "fmax(eV/A)": []}
@@ -95,24 +120,27 @@ def run_optimization(
     def log_convergence():
         step = opt.nsteps
         energy = atoms.get_potential_energy()
-        fmax_val = calc_fmax(atoms.get_forces())
+        # opt_target.get_forces() includes cell virials when relax_cell is on,
+        # matching what the optimizer's fmax convergence is checking against.
+        fmax_val = calc_fmax(opt_target.get_forces())
         log_data["step"].append(step)
         log_data["energy(eV)"].append(energy)
         log_data["fmax(eV/A)"].append(fmax_val)
 
     if verbose:
-        opt = OptimizerClass(atoms, trajectory=str(traj_file), logfile=str(log_file))
+        opt = OptimizerClass(opt_target, trajectory=str(traj_file), logfile=str(log_file))
         opt.attach(log_convergence, interval=1)
-        logger.info("Starting optimization with %s (fmax=%.4f, max_steps=%d)", optimizer.upper(), fmax, max_steps)
+        logger.info("Starting optimization with %s (fmax=%.4f, max_steps=%d, relax_cell=%s)",
+                    optimizer.upper(), fmax, max_steps, relax_cell)
         converged = opt.run(fmax=fmax, steps=max_steps)
     else:
         with open(log_file, "w") as lf:
-            opt = OptimizerClass(atoms, trajectory=str(traj_file), logfile=lf)
+            opt = OptimizerClass(opt_target, trajectory=str(traj_file), logfile=lf)
             opt.attach(log_convergence, interval=1)
             converged = opt.run(fmax=fmax, steps=max_steps)
 
     final_energy = atoms.get_potential_energy()
-    final_fmax = calc_fmax(atoms.get_forces())
+    final_fmax = calc_fmax(opt_target.get_forces())
 
     logger.info("Optimization complete (converged=%s, steps=%d, energy=%.6f eV, fmax=%.6f eV/Ang)",
                 converged, opt.nsteps, final_energy, final_fmax)

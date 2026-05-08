@@ -23,6 +23,12 @@ def run(
     optimizer: str = typer.Option("bfgs", help=f"Optimizer algorithm: {', '.join(OPTIMIZER_MAP.keys())}"),
     fmax: float = typer.Option(0.05, help="Force convergence threshold (eV/Å)"),
     max_steps: int = typer.Option(200, help="Maximum optimization steps"),
+    relax_cell: bool = typer.Option(
+        False, "--relax-cell",
+        help=("Relax the simulation cell as well as positions (VASP "
+              "ISIF=3-equivalent). Wraps atoms in ASE's FrechetCellFilter "
+              "(or ExpCellFilter on older ASE)."),
+    ),
     trajectory: str = typer.Option("opt.traj", help="Trajectory filename"),
     logfile: str = typer.Option("opt.log", help="Log filename"),
     verbose: bool = typer.Option(True, help="Show optimization progress table (forces, energies)"),
@@ -75,7 +81,8 @@ def run(
         logfile=logfile,
         output_dir=output_dir,
         model_name=mlip,
-        verbose=verbose
+        verbose=verbose,
+        relax_cell=relax_cell,
     )
 
     # Save parameters
@@ -85,6 +92,7 @@ def run(
         f.write("=================================\n")
         f.write(f"MLIP model:        {mlip}\n")
         f.write(f"Device:            {device}\n")
+        f.write(f"Relax cell:        {relax_cell}\n")
         f.write(f"Structure:         {structure.name}\n")
         f.write(f"Optimizer:         {optimizer.upper()}\n")
         f.write(f"fmax (eV/Å):       {fmax}\n")
