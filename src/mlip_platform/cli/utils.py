@@ -11,9 +11,17 @@ import typer
 
 MLIP_HELP = (
     "MLIP model. Use 'auto' (default) to auto-detect, or pass a tag explicitly: "
-    "any 'uma-*' name (e.g. 'uma-s-1p2', the current default), 'mace', "
-    "'7net-mf-ompa', or 'chgnet'. Any tag starting with 'uma-' is forwarded "
-    "to FAIRChem unchanged."
+    "any 'uma-*' name (e.g. 'uma-s-1p2', the current default), 'mace' "
+    "(MACE-MP-0 medium), 'mace-mh-1' (multi-head foundation; requires "
+    "--mace-head), '7net-mf-ompa', or 'chgnet'. Any tag starting with 'uma-' "
+    "is forwarded to FAIRChem unchanged."
+)
+
+MACE_HEAD_HELP = (
+    "Head selection for multi-head MACE foundation models (mace-mh-*). One of "
+    "'omat_pbe' (default; PBE bulk inorganic), 'oc20_usemppbe' (catalysis on "
+    "surfaces), 'matpes_r2scan' (r2SCAN materials), 'mp_pbe_refit_add', "
+    "'omol' (molecules), 'spice_wB97M' (organic). Ignored for non-MH MACE."
 )
 
 UMA_TASK_HELP = (
@@ -135,7 +143,11 @@ def validate_mlip(mlip: str) -> None:
         raise typer.Exit("UMA not available. Install with: pip install fairchem-core")
     elif mlip == "chgnet" and not CHGNET_AVAILABLE:
         raise typer.Exit("CHGNet not available. Install with: pip install chgnet")
-    elif not (mlip in ["mace", "7net-mf-ompa", "chgnet"] or mlip.startswith("uma-")):
+    elif mlip.startswith("mace-mh-") and not MACE_AVAILABLE:
+        raise typer.Exit("MACE not available. Install with: pip install mace-torch")
+    elif not (mlip in ["mace", "7net-mf-ompa", "chgnet"]
+              or mlip.startswith("uma-")
+              or mlip.startswith("mace-mh-")):
         raise typer.Exit(
             f"Unknown MLIP: {mlip}. Use any 'uma-*' tag (e.g. 'uma-s-1p2'), "
             f"'mace', '7net-mf-ompa', or 'chgnet'."
@@ -233,6 +245,36 @@ def _load_chgnet_calculator():
     return CHGNetCalculator
 
 
+# MACE foundation-model tag → release URL. Values are stable GitHub release
+# assets owned by ACEsuit/mace-foundations.
+_MACE_FOUNDATION_URLS = {
+    "mace-mh-1": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_mh_1/mace-mh-1.model",
+    "mace-mh-0": "https://github.com/ACEsuit/mace-foundations/releases/download/mace_mh_1/mace-mh-0.model",
+}
+
+
+def _ensure_mace_foundation_checkpoint(tag: str) -> str:
+    """Return a local path to the requested MACE foundation checkpoint,
+    downloading it into ``~/.cache/mace/`` if it is not already present.
+    """
+    import os
+    import urllib.request
+
+    cache_dir = os.path.expanduser("~/.cache/mace")
+    os.makedirs(cache_dir, exist_ok=True)
+    target = os.path.join(cache_dir, f"{tag}.model")
+    if os.path.exists(target):
+        return target
+
+    url = _MACE_FOUNDATION_URLS.get(tag)
+    if url is None:
+        raise typer.Exit(f"Unknown MACE foundation tag: {tag}")
+
+    typer.echo(f"Downloading {tag} from {url} → {target}")
+    urllib.request.urlretrieve(url, target)
+    return target
+
+
 def _resolve_device(device: str) -> str:
     """Resolve ``"auto"`` to ``"cuda"`` if a CUDA device is present, else ``"cpu"``.
 
@@ -249,7 +291,8 @@ def _resolve_device(device: str) -> str:
     return "cpu"
 
 
-def setup_calculator(atoms, mlip: str, uma_task: str = "omat", device: str = "auto"):
+def setup_calculator(atoms, mlip: str, uma_task: str = "omat",
+                      device: str = "auto", mace_head: str = "omat_pbe"):
     """Attach calculator to atoms object based on MLIP choice.
 
     Parameters
@@ -263,6 +306,11 @@ def setup_calculator(atoms, mlip: str, uma_task: str = "omat", device: str = "au
     device : str, optional
         Compute device: ``"auto"`` (default; cuda if available else cpu),
         ``"cuda"``, or ``"cpu"``.
+    mace_head : str, optional
+        Head name for multi-head MACE foundation models (mace-mh-*). Only
+        used when ``mlip`` matches one of those tags. Default ``"omat_pbe"``
+        (PBE bulk inorganic). Use ``"oc20_usemppbe"`` for catalysis on
+        surfaces.
 
     Returns
     -------
@@ -274,6 +322,12 @@ def setup_calculator(atoms, mlip: str, uma_task: str = "omat", device: str = "au
     if mlip == "mace":
         mace_mp = _load_mace_mp()
         atoms.calc = mace_mp(model="medium", device=device)
+
+    elif mlip.startswith("mace-mh-"):
+        from mace.calculators import MACECalculator
+        ckpt = _ensure_mace_foundation_checkpoint(mlip)
+        atoms.calc = MACECalculator(model_paths=ckpt, device=device,
+                                     head=mace_head)
 
     elif mlip == "7net-mf-ompa":
         SevenNetCalculator = _load_sevenn_calculator()

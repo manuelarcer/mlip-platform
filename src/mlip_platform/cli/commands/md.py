@@ -4,6 +4,7 @@ from ase.io import read
 from mlip_platform.core.md import run_md
 from mlip_platform.cli.utils import (
     DEVICE_HELP,
+    MACE_HEAD_HELP,
     MLIP_HELP,
     UMA_TASK_HELP,
     detect_mlip,
@@ -36,6 +37,7 @@ def run(
     mlip: str = typer.Option("auto", help=MLIP_HELP),
     uma_task: str = typer.Option("omat", help=UMA_TASK_HELP),
     device: str = typer.Option("auto", help=DEVICE_HELP),
+    mace_head: str = typer.Option("omat_pbe", help=MACE_HEAD_HELP),
 
     # Resume
     resume: bool = typer.Option(
@@ -115,7 +117,10 @@ def run(
 
     # Assign calculator
     typer.echo(f"\n⚙️  Attaching {mlip} calculator (device={device})...")
-    atoms = setup_calculator(atoms, mlip, uma_task, device=device)
+    if mlip.startswith("mace-mh-"):
+        typer.echo(f"   MACE head: {mace_head}")
+    atoms = setup_calculator(atoms, mlip, uma_task, device=device,
+                              mace_head=mace_head)
 
     # Run MD
     run_md(
@@ -149,6 +154,8 @@ def run(
         f.write(f"Device:            {device}\n")
         if mlip.startswith("uma-"):
             f.write(f"UMA task:          {uma_task}\n")
+        if mlip.startswith("mace-mh-"):
+            f.write(f"MACE head:         {mace_head}\n")
         f.write(f"Structure:         {structure.name}\n")
         f.write(f"Ensemble:          {ensemble.upper()}\n")
 
