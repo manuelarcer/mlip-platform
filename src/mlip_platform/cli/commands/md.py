@@ -139,7 +139,7 @@ def run(
 
     # Save parameters (append on resume so the full chain is recorded)
     param_file = output_dir / "md_params.txt"
-    with open(param_file, "a" if resume else "w") as f:
+    with open(param_file, "a" if resume else "w", encoding="utf-8") as f:
         if resume:
             f.write("\n--- Resume invocation ---\n")
         else:

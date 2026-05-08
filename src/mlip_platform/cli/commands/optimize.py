@@ -87,7 +87,7 @@ def run(
 
     # Save parameters
     param_file = output_dir / "opt_params.txt"
-    with open(param_file, "w") as f:
+    with open(param_file, "w", encoding="utf-8") as f:
         f.write("Geometry Optimization Parameters\n")
         f.write("=================================\n")
         f.write(f"MLIP model:        {mlip}\n")
