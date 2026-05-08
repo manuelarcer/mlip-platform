@@ -2,7 +2,13 @@ import typer
 from pathlib import Path
 from ase.io import read
 from mlip_platform.core.optimize import run_optimization, OPTIMIZER_MAP
-from mlip_platform.cli.utils import detect_mlip, validate_mlip, setup_calculator
+from mlip_platform.cli.utils import (
+    MLIP_HELP,
+    UMA_TASK_HELP,
+    detect_mlip,
+    setup_calculator,
+    validate_mlip,
+)
 
 app = typer.Typer(help="Run geometry optimization on structures.")
 
@@ -10,8 +16,8 @@ app = typer.Typer(help="Run geometry optimization on structures.")
 @app.command()
 def run(
     structure: Path = typer.Option(..., prompt=True, help="Structure file (.vasp)"),
-    mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p2' (default), 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
-    uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
+    mlip: str = typer.Option("auto", help=MLIP_HELP),
+    uma_task: str = typer.Option("omat", help=UMA_TASK_HELP),
     optimizer: str = typer.Option("bfgs", help=f"Optimizer algorithm: {', '.join(OPTIMIZER_MAP.keys())}"),
     fmax: float = typer.Option(0.05, help="Force convergence threshold (eV/Å)"),
     max_steps: int = typer.Option(200, help="Maximum optimization steps"),

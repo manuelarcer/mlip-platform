@@ -76,3 +76,44 @@ class TestRunMd:
         df = pd.read_csv(tmp_workdir / "md_energy.csv")
         assert len(df) > 0
         assert "temperature(K)" in df.columns
+
+    def test_resume_extends_trajectory(self, tmp_workdir):
+        from ase.io import read, iread
+
+        atoms = bulk("Cu", "fcc", a=3.6) * (2, 2, 2)
+        atoms.calc = EMT()
+        run_md(
+            atoms, ensemble="nvt", thermostat="langevin",
+            temperature=100, steps=10, interval=2,
+            output_dir=tmp_workdir, friction=0.05,
+        )
+        import pandas as pd
+        df1 = pd.read_csv(tmp_workdir / "md_energy.csv")
+        last_step_1 = int(df1["step"].iloc[-1])
+        n_frames_1 = sum(1 for _ in iread(str(tmp_workdir / "md.traj")))
+
+        atoms2 = read(tmp_workdir / "md.traj", index=-1)
+        atoms2.calc = EMT()
+        run_md(
+            atoms2, ensemble="nvt", thermostat="langevin",
+            temperature=100, steps=10, interval=2,
+            output_dir=tmp_workdir, friction=0.05, resume=True,
+        )
+
+        df2 = pd.read_csv(tmp_workdir / "md_energy.csv")
+        n_frames_2 = sum(1 for _ in iread(str(tmp_workdir / "md.traj")))
+
+        assert len(df2) > len(df1), "resume should extend the CSV"
+        assert n_frames_2 > n_frames_1, "resume should append trajectory frames"
+        assert int(df2["step"].iloc[-1]) > last_step_1, "step counter should advance"
+        assert (df2["step"].diff().dropna() >= 0).all(), "step values must be monotonic"
+        assert (df2["time(fs)"].diff().dropna() >= 0).all(), "time values must be monotonic"
+
+    def test_resume_without_existing_files_raises(self, tmp_workdir):
+        atoms = bulk("Cu", "fcc", a=3.6) * (2, 2, 2)
+        atoms.calc = EMT()
+        with pytest.raises(FileNotFoundError, match="Cannot resume"):
+            run_md(
+                atoms, ensemble="nvt", steps=5, interval=1,
+                output_dir=tmp_workdir, resume=True,
+            )

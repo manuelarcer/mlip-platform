@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mlip-platform",
-    version="0.2.0",
+    version="0.3.0",
     description="CLI platform for running MLIP-based MD, NEB, and Benchmarking",
     author="Juan M Arce-Ramos",
     author_email="juan.arce@ihpc.a-star.edu.sg",
@@ -30,6 +30,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
+            'mlip = mlip_platform.cli.main:app',
             'md = mlip_platform.cli.commands.md:app',
             'neb = mlip_platform.cli.commands.neb:app',
             'autoneb = mlip_platform.cli.commands.autoneb:app',

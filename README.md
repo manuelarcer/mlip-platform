@@ -46,7 +46,7 @@ pip install -e .
 3. **Install MLIP models** (choose one or more)
 
 ```bash
-# UMA models (FAIRChem) - Recommended
+# UMA models (FAIRChem) - Recommended; gated on Hugging Face
 pip install fairchem-core
 
 # SevenNet
@@ -54,9 +54,12 @@ pip install sevenn
 
 # MACE
 pip install mace-torch
+
+# CHGNet
+pip install chgnet
 ```
 
-> **Note**: Models can coexist in the same environment. The CLI will auto-detect available models or you can specify with `--mlip` flag.
+> **Note**: Models can coexist in the same environment. With `--mlip auto` (the default), the CLI picks the first available in the order **UMA → SevenNet → MACE → CHGNet**, or you can pass `--mlip <name>` to force a specific one. UMA additionally requires Hugging Face access — see [UMA_USAGE_GUIDE.md](docs/UMA_USAGE_GUIDE.md#2-hugging-face-access).
 
 ### Windows Setup
 
@@ -66,7 +69,12 @@ For detailed Windows installation instructions, see: [Windows Setup Guide](docs/
 
 ## CLI Usage
 
-All commands support `--help` to see available options.
+The package installs the following entry points:
+
+- `mlip` — top-level namespace; `mlip --help` lists every subcommand
+- `optimize`, `md`, `neb`, `autoneb`, `autoneb-results`, `benchmark` — standalone aliases
+
+`mlip <subcmd>` is equivalent to running `<subcmd>` directly. For example, `mlip md run --structure POSCAR` and `md run --structure POSCAR` do the same thing. The examples below use the standalone form for brevity. All commands support `--help`.
 
 ### Geometry Optimization
 ```bash
@@ -74,14 +82,14 @@ optimize run --structure path/to/structure.vasp
 ```
 
 **Key options:**
-- `--mlip`: Model choice (`auto`, `uma-s-1p1`, `uma-m-1p1`, `mace`, `7net-mf-ompa`)
-- `--optimizer`: Algorithm (`fire`, `bfgs`, `lbfgs`, `bfgsls`, `gpmin`, `mdmin`)
-- `--fmax`: Force convergence threshold (eV/Ang)
-- `--max-steps`: Maximum optimization steps
+- `--mlip`: Model choice (default: `auto`; explicit options include `uma-s-1p2`, `mace`, `7net-mf-ompa`, `chgnet`)
+- `--optimizer`: Algorithm (default: `bfgs`; also `fire`, `lbfgs`, `bfgsls`, `gpmin`, `mdmin`)
+- `--fmax`: Force convergence threshold in eV/Å (default: `0.05`)
+- `--max-steps`: Maximum optimization steps (default: `200`)
 
 **Example:**
 ```bash
-optimize run --structure POSCAR --mlip uma-s-1p1 --optimizer fire --fmax 0.05
+optimize run --structure POSCAR --mlip uma-s-1p2 --optimizer fire --fmax 0.05
 ```
 
 **Outputs:** `opt.traj`, `opt.log`, `opt_convergence.csv`, `opt_convergence.png`, `opt_final.vasp`, `opt_params.txt`
@@ -102,6 +110,8 @@ md run --structure path/to/structure.vasp
 - `--thermostat`: For NVT (`langevin`, `nose-hoover`, `berendsen`)
 - `--barostat`: For NPT (`npt`, `berendsen`)
 - `--mlip`: Model choice (default: `auto`)
+
+For the full MD parameter list, defaults, recommended values for solids, and worked examples, see [MD_REFERENCE.md](docs/MD_REFERENCE.md).
 
 **Example (NVT with Langevin thermostat):**
 ```bash
@@ -207,11 +217,25 @@ Extract and visualize results from a completed AutoNEB calculation:
 ---
 
 ### Benchmark
+
 ```bash
 benchmark run --structure path/to/structure.vasp
 ```
 
-Run benchmarks using available MLIP models (MACE, SevenNet).
+Times a single ``get_potential_energy()`` call for each MLIP installed in the current environment (UMA, SevenNet, MACE, CHGNet). Runs in-process — no working-directory or external script dependency.
+
+**Key options:**
+- `--models`: Comma-separated MLIP tags to benchmark (default: every installed MLIP).
+- `--uma-task`: UMA task head used for `uma-*` models (default: `omat`).
+- `--output`: Optional path for a JSON results file.
+
+**Example:**
+
+```bash
+benchmark run --structure POSCAR --models mace,uma-s-1p2 --output bench.json
+```
+
+A model that fails to load is recorded in the JSON summary with the exception message; other models continue.
 
 ---
 
@@ -249,6 +273,18 @@ pytest -m uma                          # UMA integration tests only
 
 ---
 
+## Python API
+
+The CLI commands are thin wrappers over a small set of public functions and one class. To call them directly from a script or notebook, see [PYTHON_API.md](docs/PYTHON_API.md). It covers `setup_calculator`, `run_optimization`, `run_md` / `setup_dynamics`, the `CustomNEB` class, parameter-file helpers, and small utilities.
+
+---
+
+## Output Files
+
+For a complete reference of every file each command writes — filename, format, and which command produces it — see [OUTPUTS.md](docs/OUTPUTS.md). It also documents the (different) output-directory conventions: `optimize` and `md` write next to the input structure; `neb` and `autoneb` write into the current working directory.
+
+---
+
 ## Developer Notes
 
 - CLI powered by [`typer`](https://typer.tiangolo.com/)
@@ -269,6 +305,16 @@ pytest -m uma                          # UMA integration tests only
 - Shared utilities in `core/utils.py` (fmax calculation, unit conversions)
 - Parameter I/O in `core/params_io.py` (reduces duplication across commands)
 - Integrates with [asetools](https://github.com/manuelarcer/asetools) for NEB sanity checks
+
+---
+
+## Changelog
+
+Release notes are tracked in [CHANGELOG.md](CHANGELOG.md). Current version: **0.3.0** (`setup.py`).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, test markers, code conventions, and PR expectations.
 
 ---
 

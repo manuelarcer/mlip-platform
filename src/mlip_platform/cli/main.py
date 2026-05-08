@@ -1,19 +1,23 @@
 import typer
-from mlip_platform.cli.commands import benchmark, neb, autoneb, autoneb_results, md
 
-app = typer.Typer()
+from mlip_platform.cli.commands import (
+    autoneb,
+    autoneb_results,
+    benchmark,
+    md,
+    neb,
+    optimize,
+)
 
-# Register subcommands
-app.add_typer(benchmark.app, name="benchmark", help="Run MLIP benchmark on a structure" \
-)
-app.add_typer(neb.app, name="neb", help="Run NEB interpolation and relaxation "
-)
-app.add_typer(autoneb.app, name="autoneb", help="Run AutoNEB with dynamic image insertion"
-)
-app.add_typer(autoneb_results.app, name="autoneb-results", help="Extract and visualize AutoNEB results"
-)
-app.add_typer(md.app, name="md", help="Run MD simulations "
-)  
+app = typer.Typer(help="MLIP Platform: optimization, MD, NEB, AutoNEB, and benchmarking with MLIP models.")
+
+app.add_typer(optimize.app, name="optimize", help="Run geometry optimization on a structure")
+app.add_typer(md.app, name="md", help="Run MD simulations")
+app.add_typer(neb.app, name="neb", help="Run NEB interpolation and relaxation")
+app.add_typer(autoneb.app, name="autoneb", help="Run AutoNEB with dynamic image insertion")
+app.add_typer(autoneb_results.app, name="autoneb-results", help="Extract and visualize AutoNEB results")
+app.add_typer(benchmark.app, name="benchmark", help="Run MLIP benchmark on a structure")
+
 
 if __name__ == "__main__":
     app()

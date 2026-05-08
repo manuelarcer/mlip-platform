@@ -7,7 +7,7 @@ from ase.optimize import FIRE
 
 from mlip_platform.core.neb import CustomNEB
 from mlip_platform.core.params_io import write_parameters_file, write_endpoint_results
-from mlip_platform.cli.utils import resolve_mlip, parse_relax_atoms
+from mlip_platform.cli.utils import MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
 
 app = typer.Typer()
 
@@ -19,8 +19,8 @@ def run(
     n_max: int = typer.Option(9, help="Maximum number of images (including endpoints)"),
     n_simul: int = typer.Option(1, help="Number of parallel relaxations (requires MPI for n_simul > 1)"),
     fmax: float = typer.Option(0.05, help="Force convergence threshold (eV/Ang)"),
-    mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p2' (default), 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
-    uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
+    mlip: str = typer.Option("auto", help=MLIP_HELP),
+    uma_task: str = typer.Option("omat", help=UMA_TASK_HELP),
     climb: bool = typer.Option(True, help="Enable climbing image NEB"),
     k: float = typer.Option(0.1, help="Spring constant"),
     space_energy_ratio: float = typer.Option(0.5, help="Preference for geometric (1.0) vs energy (0.0) gaps"),

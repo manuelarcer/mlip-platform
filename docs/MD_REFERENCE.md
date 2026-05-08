@@ -1,0 +1,197 @@
+# MD Reference
+
+Reference for the `md run` CLI command. Covers the three supported ensembles (NVE, NVT, NPT), every CLI flag, and the defaults used when nothing is passed.
+
+For a top-level overview of the CLI, see the [main README](../README.md). For UMA-specific examples, see [UMA_USAGE_GUIDE.md](UMA_USAGE_GUIDE.md).
+
+---
+
+## Quick start
+
+```bash
+# NVT Langevin at 300 K, 1000 steps — the default
+md run --structure structure.vasp
+
+# NVE energy-conservation run
+md run --structure structure.vasp --ensemble nve --steps 10000
+
+# NVT Nose-Hoover, 50 fs time constant
+md run --structure structure.vasp --ensemble nvt \
+   --thermostat nose-hoover --temperature 300 --ttime 50 --steps 10000
+
+# NPT (isotropic MTK) at zero pressure for lattice relaxation
+md run --structure structure.vasp --ensemble npt \
+   --temperature 300 --pressure 0.0 --steps 10000
+
+# NPT Berendsen for fast pressure equilibration
+md run --structure structure.vasp --ensemble npt --barostat berendsen \
+   --temperature 300 --pressure 0.0 --taup 1000 --steps 10000
+```
+
+---
+
+## Ensemble selection
+
+| Use case | Ensemble | Default driver |
+|----------|----------|----------------|
+| Energy conservation test | `nve` | VelocityVerlet |
+| Constant temperature, production MD | `nvt` | Langevin |
+| Fast thermal equilibration only | `nvt` | Berendsen |
+| Rigorous canonical sampling | `nvt` | Nose-Hoover |
+| Lattice / volume relaxation | `npt` | NPT (isotropic MTK) |
+| Fast pressure equilibration | `npt` | Berendsen |
+
+NVT Langevin is the default when `--ensemble` is omitted.
+
+---
+
+## Thermostats (NVT)
+
+| `--thermostat` | Backing class | Key parameter | Typical value | Best for |
+|----------------|---------------|---------------|---------------|----------|
+| `langevin` (default) | `ase.md.langevin.Langevin` | `--friction` (1/fs) | 0.01 | Production MD; good balance of accuracy and speed |
+| `nose-hoover` | `ase.md.nose_hoover.NoseHoover` | `--ttime` (fs) | 25–100 | Rigorous canonical sampling |
+| `berendsen` | `ase.md.nvtberendsen.NVTBerendsen` | `--taut` (fs) | 100–500 | Fast thermal equilibration only (not ergodic) |
+
+Nose-Hoover requires a recent ASE; the platform raises `ImportError` if it is missing.
+
+## Barostats (NPT)
+
+| `--barostat` | Backing class | Key parameters | Best for |
+|--------------|---------------|----------------|----------|
+| `npt` (default) | `ase.md.npt.NPT` (Martyna-Tobias-Klein) | `--ttime` (fs); `pfactor` is auto-computed | Lattice constant optimization, isotropic expansion |
+| `berendsen` | `ase.md.nptberendsen.NPTBerendsen` | `--taut`, `--taup` (fs) | Quick volume relaxation; not for production statistics |
+
+---
+
+## CLI parameter reference
+
+| Flag | Default | Units | Notes |
+|------|---------|-------|-------|
+| `--structure` | required | — | Path to input structure (any ASE-readable format) |
+| `--ensemble` | `nvt` | — | One of `nve`, `nvt`, `npt` |
+| `--steps` | `1000` | — | Number of MD steps |
+| `--temperature` | `300` | K | Required for NVT and NPT |
+| `--pressure` | `0.0` | GPa | NPT only; negative values = tension |
+| `--timestep` | `1.0` | fs | Safe default for solids; lower (0.5) for high T or H-rich systems |
+| `--thermostat` | `langevin` | — | NVT only: `langevin`, `nose-hoover`, `berendsen` |
+| `--barostat` | `npt` | — | NPT only: `npt`, `berendsen` |
+| `--friction` | `0.01` | 1/fs | Langevin friction coefficient |
+| `--ttime` | `25.0` | fs | Time constant for Nose-Hoover and NPT (MTK) |
+| `--taut` | `100.0` | fs | Berendsen temperature coupling time |
+| `--taup` | `1000.0` | fs | Berendsen pressure coupling time (NPT Berendsen only) |
+| `--mlip` | `auto` | — | MLIP model; auto-detect or explicit (`uma-s-1p2`, `mace`, `7net-mf-ompa`, `chgnet`, …) |
+| `--uma-task` | `omat` | — | Task head for UMA models: `omat`, `oc20`, `omol`, `odac` |
+| `--resume` | off | flag | Continue an existing run in the structure's directory. The last frame of `md.traj` is loaded as the starting state, momenta are preserved (no Maxwell-Boltzmann re-init), and `--steps` is interpreted as *additional* steps. New rows append to `md_energy.csv` and the trajectory; `md_params.txt` gets a `--- Resume invocation ---` block appended. Plots are regenerated over the full chain. |
+
+**Not exposed on the CLI** but used internally with sensible defaults:
+
+- `pfactor` for NPT MTK: auto-computed as `(ttime * 75 GPa)^2`.
+- `compressibility` for NPT Berendsen: `4.57e-5 GPa⁻¹` (water value). For metals (~1e-6) or ceramics (~1e-7), the Berendsen barostat will still equilibrate but slower / faster than ideal. If you need to tune these, use the Python API (`mlip_platform.core.md.run_md`).
+
+---
+
+## Recommended defaults for solids
+
+| Property | Default | Why |
+|----------|---------|-----|
+| Ensemble | NVT | Most common production setting |
+| Thermostat (NVT) | Langevin | Best accuracy/speed balance |
+| Barostat (NPT) | NPT (MTK, isotropic) | Rigorous; well suited to crystals |
+| Temperature | 300 K | Room temperature |
+| Pressure | 0.0 GPa | Ambient |
+| Timestep | 1.0 fs | Safe for most solids; reduce to 0.5 fs for T > 1000 K or H-containing systems |
+| Friction (Langevin) | 0.01 fs⁻¹ | Mild damping |
+| `ttime` (NPT MTK) | 25 fs | Standard MTK value |
+
+---
+
+## Output files
+
+Every `md run` invocation writes the following to the directory containing the input structure:
+
+| File | Contents |
+|------|----------|
+| `md.traj` | Full ASE trajectory (every `interval` steps) |
+| `md_energy.csv` | Step, time (fs), temperature (K), total / potential / kinetic energy (eV); plus `pressure(GPa)` and `volume(A^3)` columns for NPT |
+| `md_energy.png` | Total / potential / kinetic energy vs time |
+| `md_temperature.png` | Temperature vs time, with target line for NVT/NPT |
+| `md_pressure.png` | NPT only: pressure vs time, with target line |
+| `md_volume.png` | NPT only: volume vs time |
+| `md_params.txt` | Echo of every parameter the run was launched with |
+
+Output goes to `Path(--structure).parent`, not the current working directory.
+
+---
+
+## Worked examples
+
+### Equilibration with Berendsen (NVT)
+
+```bash
+md run --structure structure.vasp \
+   --ensemble nvt --thermostat berendsen \
+   --temperature 300 --steps 5000 --timestep 1.0
+```
+
+Use only for the equilibration phase; switch to Langevin or Nose-Hoover for any data you intend to analyze.
+
+### Production Langevin NVT
+
+```bash
+md run --structure structure.vasp \
+   --ensemble nvt --thermostat langevin \
+   --temperature 300 --friction 0.01 \
+   --steps 50000 --timestep 1.0
+```
+
+### Lattice constant via NPT
+
+```bash
+md run --structure structure.vasp \
+   --ensemble npt --temperature 300 --pressure 0.0 \
+   --steps 10000 --timestep 1.0
+```
+
+After the run, average `volume(A^3)` from `md_energy.csv` over the equilibrated portion to extract the lattice constant.
+
+### High-pressure simulation
+
+```bash
+md run --structure structure.vasp \
+   --ensemble npt --temperature 1000 --pressure 50.0 \
+   --steps 20000 --timestep 0.5
+```
+
+A shorter timestep (0.5 fs) is appropriate at high T and high P.
+
+### Energy conservation test
+
+```bash
+md run --structure structure.vasp \
+   --ensemble nve --steps 10000 --timestep 1.0
+```
+
+Inspect `md_energy.png`: the total-energy curve should be flat. Drift is a sign that the timestep is too large or the calculator is stochastic.
+
+---
+
+## Notes
+
+### Pressure units
+
+- CLI: GPa
+- ASE internal: eV/Å³
+- Conversion: `1 GPa = 0.006241509 eV/Å³` (constant `GPA_TO_EV_PER_ANG3` in `core/utils.py`)
+
+### MTK pfactor formula
+
+```python
+pfactor = (ttime * 75 * units.GPa) ** 2
+```
+
+For `ttime = 25 fs` this gives `pfactor ≈ 140 (eV/Å³)²·fs²`. The factor 75 GPa is a representative bulk modulus. For very stiff (>>200 GPa) or very soft (<10 GPa) systems, the time to reach pressure equilibrium may be unacceptably long; in that case, drive `pfactor` directly via the Python API.
+
+### Initial velocities
+
+Velocities are initialized from a Maxwell-Boltzmann distribution at `--temperature` whenever `--ensemble` is `nvt` or `npt` and `--temperature > 0`. NVE keeps whatever velocities are already on the input structure (or zero if none).

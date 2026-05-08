@@ -13,6 +13,7 @@ from mlip_platform.cli.utils import (
     FAIRCHEM_AVAILABLE,
     SEVENN_AVAILABLE,
     MACE_AVAILABLE,
+    CHGNET_AVAILABLE,
 )
 
 
@@ -44,6 +45,14 @@ class TestDetectMlip:
     @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
     @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", False)
     @patch("mlip_platform.cli.utils.MACE_AVAILABLE", False)
+    @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", True)
+    def test_falls_back_to_chgnet(self):
+        assert detect_mlip() == "chgnet"
+
+    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", False)
+    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", False)
+    @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", False)
     def test_none_available_raises(self):
         with pytest.raises((SystemExit, ClickExit)):
             detect_mlip()
@@ -71,6 +80,15 @@ class TestValidateMlip:
     def test_uma_unavailable_raises(self):
         with pytest.raises((SystemExit, ClickExit)):
             validate_mlip("uma-s-1p1")
+
+    @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", False)
+    def test_chgnet_unavailable_raises(self):
+        with pytest.raises((SystemExit, ClickExit)):
+            validate_mlip("chgnet")
+
+    @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", True)
+    def test_chgnet_available_passes(self):
+        validate_mlip("chgnet")  # should not raise
 
 
 class TestResolveMlip:

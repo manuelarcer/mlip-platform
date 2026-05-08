@@ -25,7 +25,7 @@ OPTIMIZER_MAP = {
 
 def run_optimization(
     atoms,
-    optimizer: str = "fire",
+    optimizer: str = "bfgs",
     fmax: float = 0.05,
     max_steps: int = 200,
     trajectory: str = "opt.traj",

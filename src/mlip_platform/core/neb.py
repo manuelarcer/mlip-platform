@@ -305,6 +305,9 @@ class CustomNEB:
             from fairchem.core import FAIRChemCalculator, pretrained_mlip
             predictor = pretrained_mlip.get_predict_unit(model, device="cpu")
             return FAIRChemCalculator(predictor, task_name=uma_task)
+        elif model == "chgnet":
+            from chgnet.model.dynamics import CHGNetCalculator
+            return CHGNetCalculator()
         else:
             raise ValueError(f"Unknown model: {model}")
 

@@ -167,16 +167,28 @@ pip install -e .
 
 **What this does:** The `-e .` option installs the package in editable (development) mode, which means:
 - Changes you make to the source code are immediately reflected without reinstalling
-- The `mlip` command-line tool becomes available in your environment
+- A set of CLI commands becomes available in your environment
 
 **Expected output (last few lines):**
 ```
 Successfully built mlip-platform
 Installing collected packages: typing-extensions, click, olefile, fonttools, cycler, colorama, scipy, ...
-Successfully installed ase-3.26.0 click-8.1.8 ... mlip-platform-4.15.0
+Successfully installed ase-3.26.0 click-8.1.8 ... mlip-platform-0.2.0
 ```
 
-**Verify installation:** The `mlip` CLI command should now be available whenever the 'uma' virtual environment is active.
+**Verify installation:** Each of the following commands should work whenever the 'uma' virtual environment is active:
+
+| Command | What it runs |
+|---------|--------------|
+| `mlip --help` | Top-level namespace; lists every subcommand below |
+| `optimize --help` | Geometry optimization |
+| `md --help` | Molecular dynamics (NVE / NVT / NPT) |
+| `neb --help` | Nudged Elastic Band |
+| `autoneb --help` | AutoNEB with dynamic image insertion |
+| `autoneb-results --help` | Extract / plot results from a completed AutoNEB run |
+| `benchmark --help` | MACE / SevenNet timing benchmarks |
+
+`mlip <name>` is equivalent to running `<name>` directly — for example, `mlip md run --structure POSCAR` and `md run --structure POSCAR` do the same thing. Use whichever you prefer.
 
 ---
 
@@ -302,8 +314,9 @@ Your environment is now fully configured with:
 
 **Next steps:**
 - Keep the 'uma' virtual environment activated when working with MLIP-Platform
-- Use `mlip --help` to explore available commands
+- Use `mlip --help` to explore the full command namespace, or call any subcommand directly (e.g. `optimize --help`, `md --help`)
 - Refer to the [main README](../README.md) for usage examples and documentation
+- For UMA-specific examples, see [UMA Models Usage Guide](UMA_USAGE_GUIDE.md)
 
 **Troubleshooting tips:**
 - If commands are not found, ensure the 'uma' virtual environment is activated (look for `(uma)` in your prompt)

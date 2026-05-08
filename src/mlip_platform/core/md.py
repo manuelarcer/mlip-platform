@@ -56,6 +56,7 @@ def setup_dynamics(
     taut: float = 100.0,
     taup: float = 1000.0,
     compressibility: float = 4.57e-5,
+    set_velocities: bool = True,
 ):
     """Set up MD dynamics with specified ensemble and parameters.
 
@@ -101,7 +102,7 @@ def setup_dynamics(
     """
     ensemble = ensemble.lower()
 
-    if ensemble in ["nvt", "npt"] and temperature > 0:
+    if set_velocities and ensemble in ["nvt", "npt"] and temperature > 0:
         MaxwellBoltzmannDistribution(atoms, temperature_K=temperature)
 
     timestep_ase = timestep * units.fs
@@ -178,6 +179,7 @@ def run_md(
     log_path=None,
     output_dir: str | Path = ".",
     model_name: str = "mlip",
+    resume: bool = False,
 ) -> None:
     """Run molecular dynamics simulation.
 
@@ -208,20 +210,10 @@ def run_md(
     energy_plot = output_path / "md_energy.png"
     temp_plot = output_path / "md_temperature.png"
 
-    dyn = setup_dynamics(
-        atoms, ensemble=ensemble, thermostat=thermostat, barostat=barostat,
-        temperature=temperature, pressure=pressure, timestep=timestep,
-        friction=friction, ttime=ttime, pfactor=pfactor,
-        taut=taut, taup=taup, compressibility=compressibility,
-    )
-
-    traj_writer = Trajectory(str(traj_file), "w", atoms)
-    dyn.attach(traj_writer.write, interval=interval)
-
-    stress_log = (ensemble == "npt")
-    dyn.attach(MDLogger(dyn, atoms, sys.stdout, header=True, stress=stress_log), interval=interval)
-    if log_path:
-        dyn.attach(MDLogger(dyn, atoms, log_path, header=True, stress=stress_log), interval=interval)
+    if resume and not (traj_file.exists() and csv_file.exists()):
+        raise FileNotFoundError(
+            f"Cannot resume: expected both {traj_file} and {csv_file} to exist."
+        )
 
     log_data = {
         "step": [], "time(fs)": [], "temperature(K)": [],
@@ -230,6 +222,34 @@ def run_md(
     if ensemble == "npt":
         log_data["pressure(GPa)"] = []
         log_data["volume(A^3)"] = []
+
+    prior_steps = 0
+    if resume:
+        prior_df = pd.read_csv(csv_file)
+        for col in log_data:
+            if col in prior_df.columns:
+                log_data[col].extend(prior_df[col].tolist())
+        prior_steps = int(prior_df["step"].iloc[-1]) if len(prior_df) else 0
+        logger.info("Resuming MD from step %d (prior frames: %d)", prior_steps, len(prior_df))
+
+    dyn = setup_dynamics(
+        atoms, ensemble=ensemble, thermostat=thermostat, barostat=barostat,
+        temperature=temperature, pressure=pressure, timestep=timestep,
+        friction=friction, ttime=ttime, pfactor=pfactor,
+        taut=taut, taup=taup, compressibility=compressibility,
+        set_velocities=not resume,
+    )
+    if resume:
+        dyn.nsteps = prior_steps
+
+    traj_mode = "a" if resume else "w"
+    traj_writer = Trajectory(str(traj_file), traj_mode, atoms)
+    dyn.attach(traj_writer.write, interval=interval)
+
+    stress_log = (ensemble == "npt")
+    dyn.attach(MDLogger(dyn, atoms, sys.stdout, header=True, stress=stress_log), interval=interval)
+    if log_path:
+        dyn.attach(MDLogger(dyn, atoms, log_path, header=True, stress=stress_log), interval=interval)
 
     def log_properties():
         step = dyn.get_number_of_steps()

@@ -10,7 +10,7 @@ from ase.optimize import FIRE, MDMin, BFGS, LBFGS
 
 from mlip_platform.core.neb import CustomNEB
 from mlip_platform.core.params_io import write_parameters_file, write_endpoint_results
-from mlip_platform.cli.utils import resolve_mlip, parse_relax_atoms
+from mlip_platform.cli.utils import MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
 
 logger = logging.getLogger(__name__)
 
@@ -312,8 +312,8 @@ def run(
     interp_fmax: float = typer.Option(None, help="IDPP interpolation fmax"),
     interp_steps: int = typer.Option(None, help="IDPP interpolation steps"),
     fmax: float = typer.Option(None, help="Final NEB force threshold"),
-    mlip: str = typer.Option(None, help="MLIP model: 'uma-s-1p2' (default), 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
-    uma_task: str = typer.Option(None, help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)"),
+    mlip: str = typer.Option(None, help=MLIP_HELP),
+    uma_task: str = typer.Option(None, help=UMA_TASK_HELP),
     relax_atoms: str = typer.Option(None, help="Comma-separated list of atom indices to relax (e.g. '0,1,5'). If set, others are fixed."),
     log: str = typer.Option(None, help="Name for the NEB iteration log file (default: neb.log)"),
     k: float = typer.Option(None, help="Spring constant for NEB"),

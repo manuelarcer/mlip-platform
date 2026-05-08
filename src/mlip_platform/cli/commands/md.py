@@ -2,7 +2,13 @@ import typer
 from pathlib import Path
 from ase.io import read
 from mlip_platform.core.md import run_md
-from mlip_platform.cli.utils import detect_mlip, validate_mlip, setup_calculator
+from mlip_platform.cli.utils import (
+    MLIP_HELP,
+    UMA_TASK_HELP,
+    detect_mlip,
+    setup_calculator,
+    validate_mlip,
+)
 
 app = typer.Typer(help="Run molecular dynamics simulations.")
 
@@ -26,15 +32,36 @@ def run(
     taup: float = typer.Option(1000.0, help="Berendsen pressure coupling time (fs)"),
 
     # MLIP options
-    mlip: str = typer.Option("auto", help="MLIP model: 'uma-s-1p2' (default), 'uma-s-1p1', 'uma-m-1p1', 'mace', '7net-mf-ompa', or 'auto'"),
-    uma_task: str = typer.Option("omat", help="UMA task name: 'omat', 'oc20', 'omol', or 'odac' (only for UMA models)")
+    mlip: str = typer.Option("auto", help=MLIP_HELP),
+    uma_task: str = typer.Option("omat", help=UMA_TASK_HELP),
+
+    # Resume
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help=(
+            "Resume from an existing md.traj + md_energy.csv in the structure's "
+            "directory. The provided --structure is ignored for positions/momenta "
+            "(the last trajectory frame is used instead) but is still required "
+            "to locate the output directory. --steps is additional steps on top "
+            "of the prior run."
+        ),
+    ),
 ):
     """
     Run molecular dynamics simulation using a supported MLIP model.
 
     Supports NVE, NVT, and NPT ensembles with various thermostats and barostats.
     """
-    atoms = read(structure)
+    output_dir = structure.parent
+    if resume:
+        traj_file = output_dir / "md.traj"
+        if not traj_file.exists():
+            raise typer.Exit(f"❌ --resume specified but {traj_file} not found.")
+        atoms = read(traj_file, index=-1)
+        typer.echo(f"🔁 Resuming from {traj_file} (last frame).")
+    else:
+        atoms = read(structure)
     ensemble = ensemble.lower()
 
     # Validate ensemble
@@ -88,8 +115,6 @@ def run(
     typer.echo(f"\n⚙️  Attaching {mlip} calculator...")
     atoms = setup_calculator(atoms, mlip, uma_task)
 
-    output_dir = structure.parent
-
     # Run MD
     run_md(
         atoms=atoms,
@@ -106,14 +131,18 @@ def run(
         steps=steps,
         interval=1,
         output_dir=output_dir,
-        model_name=mlip
+        model_name=mlip,
+        resume=resume,
     )
 
-    # Save parameters
+    # Save parameters (append on resume so the full chain is recorded)
     param_file = output_dir / "md_params.txt"
-    with open(param_file, "w") as f:
-        f.write("MD Run Parameters\n")
-        f.write("===================\n")
+    with open(param_file, "a" if resume else "w") as f:
+        if resume:
+            f.write("\n--- Resume invocation ---\n")
+        else:
+            f.write("MD Run Parameters\n")
+            f.write("===================\n")
         f.write(f"MLIP model:        {mlip}\n")
         if mlip.startswith("uma-"):
             f.write(f"UMA task:          {uma_task}\n")

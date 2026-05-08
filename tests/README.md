@@ -1,119 +1,89 @@
-# MILP Test Suite
+# Tests
 
-This repository contains a test framework for validating MLIP (Machine-Learned Interatomic Potentials) calculations using **ASE**, **SevenNet**, and **MACE**. It supports structured testing of single-point energy predictions and can be extended to other test scenarios.
+Pytest suite for `mlip_platform`. Most unit tests run on ASE's built-in EMT calculator and need no MLIP installed; integration tests against UMA, MACE, and SevenNet are gated behind markers and auto-skip when the corresponding package is missing.
 
-## 📁 Project Structure
+## Layout
 
 ```
-/MILP 1/
+tests/
+├── conftest.py                 # marker registration, MLIP-availability detection, shared fixtures
+├── fixtures/structures/        # POSCARs and reference outputs used by integration tests
 │
-├── test/
-│   └── test_milp_single_point.py   # Pytest script for energy validation
+├── test_core_optimize.py       # core.optimize.run_optimization (EMT)
+├── test_core_md.py             # core.md.setup_dynamics, run_md (EMT)
+├── test_core_neb.py            # core.neb.CustomNEB end-to-end (EMT)
+├── test_core_utils.py          # core.utils.calc_fmax, params_io
+├── test_neb_restart.py         # NEB restart parsing + override logic (no MLIP)
+├── test_neb_constrained.py     # highly-constrained NEB mode (relax_atoms)
 │
-├── pytest.ini                      # Config for pytest discovery
-├── ...
+├── test_cli.py                 # `--help` smoke tests for each command
+├── test_cli_commands.py        # CLI argument parsing / help output
+├── test_cli_utils.py           # detect_mlip / validate_mlip / resolve_mlip
+│
+├── test_integration_uma.py     # UMA end-to-end (marker: uma)
+├── test_md_mace.py             # MACE MD smoke test
+├── test_md_sevenn.py           # SevenNet MD smoke test
+├── test_neb_mace.py            # MACE NEB smoke test
+├── test_neb_sevenn.py          # SevenNet NEB smoke test
+├── test_milp_single_point.py   # single-point energy on MACE / SevenNet
+└── test_benchmark.py           # placeholder, currently empty
 ```
 
-## 🐍 Python & Environment
+## Markers
 
-- Python version: **3.11.13**
-- Two virtual environments are created outside of the project folder:
-  - `mace-env`: for MACE-related testing
-  - `sevenn-env`: for SevenNet-based testing
+Registered in `pytest.ini` and `conftest.py`:
 
-These environments must be activated before running tests.
+| Marker  | Meaning |
+|---------|---------|
+| `uma`    | Requires `fairchem-core`. Auto-skipped if not installed. |
+| `mace`   | Requires `mace-torch`. Auto-skipped if not installed. |
+| `sevenn` | Requires `sevenn`. Auto-skipped if not installed. |
+| `slow`   | Long-running tests. Deselect with `-m "not slow"`. |
 
----
+`conftest.py:pytest_collection_modifyitems` walks every collected test and adds a `skip` marker if the package backing the test is missing. The MLIP-specific test files also use plain `@pytest.mark.skipif` guards as a belt-and-braces fallback.
 
-## ⚙️ Setup Instructions
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/YuanZhang28/mlip-platform.git
-cd mlip-platform/MILP\ 1
-```
-
-### 2. Activate one of the environments
-
-For SevenNet:
-```bash
-source ../sevenn-env/bin/activate
-```
-
-For MACE:
-```bash
-source ../mace-env/bin/activate
-```
-
-### 3. Install dependencies
-
-Inside the active environment:
+## Running
 
 ```bash
-pip install -r requirements.txt
-```
-
-> If `requirements.txt` is missing, install manually:
-```bash
-pip install ase pytest
-pip install sevenn  # If using SevenNet
-pip install mace-torch==0.3.13 e3nn==0.4.4  # If using MACE
-```
-
----
-
-## 🧪 Running Tests
-
-Tests are run with `pytest`. From the root of `MILP 1`, run:
-
-```bash
+# Default — runs everything that can run in the current environment
 pytest
+
+# Unit tests only (no MLIP installed or wanted)
+pytest -m "not uma and not mace and not sevenn"
+
+# Specific MLIP integration suite
+pytest -m uma
+pytest -m mace
+pytest -m sevenn
+
+# A single file or test
+pytest tests/test_core_neb.py
+pytest tests/test_neb_restart.py::TestParseParametersFile
+
+# Exclude slow tests
+pytest -m "not slow"
 ```
 
-Or run a specific test file:
-```bash
-pytest test/test_milp_single_point.py
-```
+`pytest.ini` sets `pythonpath = src` and `testpaths = tests`, so `pytest` works from the repo root with no extra flags. `--maxfail=0 --continue-on-collection-errors` are on by default so a single broken import doesn't hide the rest of the run.
 
----
+## Fixtures
 
-## 🔬 Test Example Description
+Defined in `conftest.py`:
 
-### `test_milp_single_point.py`
+- `simple_atoms` / `simple_atoms_no_calc` — Cu FCC bulk with / without an EMT calculator attached.
+- `initial_final_pair` — Two Cu (2×2×2) supercells with one displaced atom; used as a minimal NEB pathway.
+- `mock_calculator` — bare `EMT()` instance.
+- `tmp_workdir` — alias for pytest's `tmp_path`, returned as a `Path`.
+- `fixtures_dir` — `tests/fixtures/structures/` as a `Path`, for tests that need pre-staged POSCARs.
 
-- Loads a `POSCAR` file (VASP format)
-- Attaches a machine-learned potential (SevenNet or MACE)
-- Validates that an energy value is returned correctly (as `float`)
+## Adding a new test
 
----
+1. Decide whether the test needs an MLIP. If not, use the EMT-based fixtures and put the file under `test_core_*` or `test_cli_*`.
+2. If it does, mark the file or function with the matching marker (`uma`, `mace`, or `sevenn`) so it auto-skips elsewhere. Example:
 
-## 📄 pytest.ini
+   ```python
+   import pytest
+   pytestmark = pytest.mark.uma  # entire module gated on fairchem-core
+   ```
 
-Configured for test discovery inside the `test/` folder:
-
-```ini
-[pytest]
-testpaths = test
-python_files = test_*.py
-```
-
----
-
-## 📦 Recommended `.gitignore`
-
-If you keep your virtual environments outside of the project, ignore them like this:
-
-```gitignore
-../mace-env/
-../sevenn-env/
-__pycache__/
-*.pyc
-```
-
----
-
-## 📌 Notes
-
-- Ensure `e3nn` is pinned to `0.4.4` for compatibility with `mace-torch==0.3.13`
-- SevenNet requires checkpoint files and may depend on correct model paths
+3. Pre-staged structures go under `tests/fixtures/structures/<descriptive-name>/`. Avoid committing trajectory or PNG outputs unless a test needs them as reference data.

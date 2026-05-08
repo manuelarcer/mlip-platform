@@ -6,6 +6,24 @@ import typer
 
 
 # ---------------------------------------------------------------------------
+# CLI help strings (single source of truth — imported by every command)
+# ---------------------------------------------------------------------------
+
+MLIP_HELP = (
+    "MLIP model. Use 'auto' (default) to auto-detect, or pass a tag explicitly: "
+    "any 'uma-*' name (e.g. 'uma-s-1p2', the current default), 'mace', "
+    "'7net-mf-ompa', or 'chgnet'. Any tag starting with 'uma-' is forwarded "
+    "to FAIRChem unchanged."
+)
+
+UMA_TASK_HELP = (
+    "UMA task head: 'omat' (default; bulk inorganic materials), 'oc20' "
+    "(catalysis on surfaces), 'omol' (molecules), or 'odac' (ODAC dataset). "
+    "Ignored for non-UMA models."
+)
+
+
+# ---------------------------------------------------------------------------
 # Package availability checks (lightweight, no heavy imports)
 # ---------------------------------------------------------------------------
 
@@ -39,10 +57,21 @@ def _check_mace() -> bool:
         return False
 
 
+@functools.lru_cache(maxsize=1)
+def _check_chgnet() -> bool:
+    """Check if chgnet is available without importing it."""
+    try:
+        distribution("chgnet")
+        return True
+    except PackageNotFoundError:
+        return False
+
+
 # Module-level convenience flags (still evaluated once at import)
 FAIRCHEM_AVAILABLE = _check_fairchem()
 SEVENN_AVAILABLE = _check_sevenn()
 MACE_AVAILABLE = _check_mace()
+CHGNET_AVAILABLE = _check_chgnet()
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +79,7 @@ MACE_AVAILABLE = _check_mace()
 # ---------------------------------------------------------------------------
 
 def detect_mlip() -> str:
-    """Detect available MLIP model in order of preference: UMA > SevenNet > MACE.
+    """Detect available MLIP model in order of preference: UMA > SevenNet > MACE > CHGNet.
 
     Returns
     -------
@@ -68,9 +97,11 @@ def detect_mlip() -> str:
         return "7net-mf-ompa"
     elif MACE_AVAILABLE:
         return "mace"
+    elif CHGNET_AVAILABLE:
+        return "chgnet"
     else:
         raise typer.Exit(
-            "No supported MLIP found. Please install UMA (fairchem-core), SevenNet, or MACE."
+            "No supported MLIP found. Please install UMA (fairchem-core), SevenNet, MACE, or CHGNet."
         )
 
 
@@ -96,9 +127,12 @@ def validate_mlip(mlip: str) -> None:
         raise typer.Exit("SevenNet not available. Install with: pip install sevenn")
     elif mlip.startswith("uma-") and not FAIRCHEM_AVAILABLE:
         raise typer.Exit("UMA not available. Install with: pip install fairchem-core")
-    elif not (mlip in ["mace", "7net-mf-ompa"] or mlip.startswith("uma-")):
+    elif mlip == "chgnet" and not CHGNET_AVAILABLE:
+        raise typer.Exit("CHGNet not available. Install with: pip install chgnet")
+    elif not (mlip in ["mace", "7net-mf-ompa", "chgnet"] or mlip.startswith("uma-")):
         raise typer.Exit(
-            f"Unknown MLIP: {mlip}. Use 'uma-s-1p2', 'uma-s-1p1', 'uma-m-1p1', 'mace', or '7net-mf-ompa'."
+            f"Unknown MLIP: {mlip}. Use any 'uma-*' tag (e.g. 'uma-s-1p2'), "
+            f"'mace', '7net-mf-ompa', or 'chgnet'."
         )
 
 
@@ -187,6 +221,12 @@ def _load_fairchem():
     return pretrained_mlip, FAIRChemCalculator
 
 
+@functools.lru_cache(maxsize=1)
+def _load_chgnet_calculator():
+    from chgnet.model.dynamics import CHGNetCalculator
+    return CHGNetCalculator
+
+
 def setup_calculator(atoms, mlip: str, uma_task: str = "omat"):
     """Attach calculator to atoms object based on MLIP choice.
 
@@ -216,5 +256,9 @@ def setup_calculator(atoms, mlip: str, uma_task: str = "omat"):
         pretrained_mlip, FAIRChemCalculator = _load_fairchem()
         predictor = pretrained_mlip.get_predict_unit(mlip, device="cpu")
         atoms.calc = FAIRChemCalculator(predictor, task_name=uma_task)
+
+    elif mlip == "chgnet":
+        CHGNetCalculator = _load_chgnet_calculator()
+        atoms.calc = CHGNetCalculator()
 
     return atoms
