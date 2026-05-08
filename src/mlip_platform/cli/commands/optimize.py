@@ -3,6 +3,7 @@ from pathlib import Path
 from ase.io import read
 from mlip_platform.core.optimize import run_optimization, OPTIMIZER_MAP
 from mlip_platform.cli.utils import (
+    DEVICE_HELP,
     MLIP_HELP,
     UMA_TASK_HELP,
     detect_mlip,
@@ -18,6 +19,7 @@ def run(
     structure: Path = typer.Option(..., prompt=True, help="Structure file (.vasp)"),
     mlip: str = typer.Option("auto", help=MLIP_HELP),
     uma_task: str = typer.Option("omat", help=UMA_TASK_HELP),
+    device: str = typer.Option("auto", help=DEVICE_HELP),
     optimizer: str = typer.Option("bfgs", help=f"Optimizer algorithm: {', '.join(OPTIMIZER_MAP.keys())}"),
     fmax: float = typer.Option(0.05, help="Force convergence threshold (eV/Å)"),
     max_steps: int = typer.Option(200, help="Maximum optimization steps"),
@@ -50,10 +52,10 @@ def run(
         raise typer.Exit(1)
 
     # Assign calculator
-    typer.echo(f"⚙️  Attaching {mlip} calculator...")
+    typer.echo(f"⚙️  Attaching {mlip} calculator (device={device})...")
     if mlip.startswith("uma-"):
         typer.echo(f"   UMA task: {uma_task}")
-    atoms = setup_calculator(atoms, mlip, uma_task)
+    atoms = setup_calculator(atoms, mlip, uma_task, device=device)
 
     # Output directory
     output_dir = structure.parent
@@ -82,6 +84,7 @@ def run(
         f.write("Geometry Optimization Parameters\n")
         f.write("=================================\n")
         f.write(f"MLIP model:        {mlip}\n")
+        f.write(f"Device:            {device}\n")
         f.write(f"Structure:         {structure.name}\n")
         f.write(f"Optimizer:         {optimizer.upper()}\n")
         f.write(f"fmax (eV/Å):       {fmax}\n")

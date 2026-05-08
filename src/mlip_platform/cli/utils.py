@@ -22,6 +22,12 @@ UMA_TASK_HELP = (
     "Ignored for non-UMA models."
 )
 
+DEVICE_HELP = (
+    "Compute device: 'auto' (default; cuda if available, else cpu), "
+    "'cuda' (force GPU), or 'cpu' (force CPU). For multi-GPU nodes, set "
+    "CUDA_VISIBLE_DEVICES to pick which GPU."
+)
+
 
 # ---------------------------------------------------------------------------
 # Package availability checks (lightweight, no heavy imports)
@@ -227,7 +233,23 @@ def _load_chgnet_calculator():
     return CHGNetCalculator
 
 
-def setup_calculator(atoms, mlip: str, uma_task: str = "omat"):
+def _resolve_device(device: str) -> str:
+    """Resolve ``"auto"`` to ``"cuda"`` if a CUDA device is present, else ``"cpu"``.
+
+    A passed-through ``"cuda"`` or ``"cpu"`` is returned unchanged.
+    """
+    if device != "auto":
+        return device
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "cuda"
+    except ImportError:
+        pass
+    return "cpu"
+
+
+def setup_calculator(atoms, mlip: str, uma_task: str = "omat", device: str = "auto"):
     """Attach calculator to atoms object based on MLIP choice.
 
     Parameters
@@ -238,27 +260,32 @@ def setup_calculator(atoms, mlip: str, uma_task: str = "omat"):
         MLIP model name.
     uma_task : str, optional
         Task name for UMA models (default: ``"omat"``).
+    device : str, optional
+        Compute device: ``"auto"`` (default; cuda if available else cpu),
+        ``"cuda"``, or ``"cpu"``.
 
     Returns
     -------
     ase.Atoms
         Atoms object with calculator attached.
     """
+    device = _resolve_device(device)
+
     if mlip == "mace":
         mace_mp = _load_mace_mp()
-        atoms.calc = mace_mp(model="medium", device="cpu")
+        atoms.calc = mace_mp(model="medium", device=device)
 
     elif mlip == "7net-mf-ompa":
         SevenNetCalculator = _load_sevenn_calculator()
-        atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa")
+        atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa", device=device)
 
     elif mlip.startswith("uma-"):
         pretrained_mlip, FAIRChemCalculator = _load_fairchem()
-        predictor = pretrained_mlip.get_predict_unit(mlip, device="cpu")
+        predictor = pretrained_mlip.get_predict_unit(mlip, device=device)
         atoms.calc = FAIRChemCalculator(predictor, task_name=uma_task)
 
     elif mlip == "chgnet":
         CHGNetCalculator = _load_chgnet_calculator()
-        atoms.calc = CHGNetCalculator()
+        atoms.calc = CHGNetCalculator(use_device=device)
 
     return atoms

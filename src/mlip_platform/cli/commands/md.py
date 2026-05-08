@@ -3,6 +3,7 @@ from pathlib import Path
 from ase.io import read
 from mlip_platform.core.md import run_md
 from mlip_platform.cli.utils import (
+    DEVICE_HELP,
     MLIP_HELP,
     UMA_TASK_HELP,
     detect_mlip,
@@ -34,6 +35,7 @@ def run(
     # MLIP options
     mlip: str = typer.Option("auto", help=MLIP_HELP),
     uma_task: str = typer.Option("omat", help=UMA_TASK_HELP),
+    device: str = typer.Option("auto", help=DEVICE_HELP),
 
     # Resume
     resume: bool = typer.Option(
@@ -112,8 +114,8 @@ def run(
     typer.echo(f"   Timestep:    {timestep} fs")
 
     # Assign calculator
-    typer.echo(f"\n⚙️  Attaching {mlip} calculator...")
-    atoms = setup_calculator(atoms, mlip, uma_task)
+    typer.echo(f"\n⚙️  Attaching {mlip} calculator (device={device})...")
+    atoms = setup_calculator(atoms, mlip, uma_task, device=device)
 
     # Run MD
     run_md(
@@ -144,6 +146,7 @@ def run(
             f.write("MD Run Parameters\n")
             f.write("===================\n")
         f.write(f"MLIP model:        {mlip}\n")
+        f.write(f"Device:            {device}\n")
         if mlip.startswith("uma-"):
             f.write(f"UMA task:          {uma_task}\n")
         f.write(f"Structure:         {structure.name}\n")
