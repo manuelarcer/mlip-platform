@@ -60,6 +60,24 @@ def run(
             "flush at end of run."
         ),
     ),
+    log_interval: int = typer.Option(
+        10,
+        "--log-interval",
+        help=(
+            "Append a row to md_energy.csv every N steps (also drives the "
+            "stdout MDLogger). At dt=0.5 fs the default 10 → one row every "
+            "5 fs."
+        ),
+    ),
+    traj_interval: int = typer.Option(
+        100,
+        "--traj-interval",
+        help=(
+            "Write a frame to md.traj every N steps. At dt=0.5 fs the default "
+            "100 → one frame every 50 fs. Lower for finer dynamics; raise to "
+            "shrink disk."
+        ),
+    ),
 ):
     """
     Run molecular dynamics simulation using a supported MLIP model.
@@ -173,6 +191,8 @@ def run(
             f.write(f"Temperature (K):   {temperature}\n")
         f.write(f"Number of steps:   {steps}\n")
         f.write(f"Timestep (fs):     {timestep}\n")
+        f.write(f"Log interval:      {log_interval} steps\n")
+        f.write(f"Traj interval:     {traj_interval} steps\n")
         f.write(f"Output dir:        {output_dir.resolve()}\n")
 
     # Run MD
@@ -189,7 +209,8 @@ def run(
         taut=taut,
         taup=taup,
         steps=steps,
-        interval=1,
+        log_interval=log_interval,
+        traj_interval=traj_interval,
         output_dir=output_dir,
         model_name=mlip,
         resume=resume,

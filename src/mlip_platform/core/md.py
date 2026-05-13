@@ -175,7 +175,8 @@ def run_md(
     taup: float = 1000.0,
     compressibility: float = 4.57e-5,
     steps: int = 1000,
-    interval: int = 1,
+    log_interval: int = 10,
+    traj_interval: int = 100,
     log_path=None,
     output_dir: str | Path = ".",
     model_name: str = "mlip",
@@ -192,8 +193,11 @@ def run_md(
         Ensemble type: ``'nve'``, ``'nvt'``, ``'npt'``.
     steps : int
         Number of MD steps.
-    interval : int
-        Logging interval.
+    log_interval : int
+        Append a row to md_energy.csv every N steps (also drives stdout
+        MDLogger). At dt=0.5 fs, 10 → 5 fs/row.
+    traj_interval : int
+        Write a frame to md.traj every N steps. At dt=0.5 fs, 100 → 50 fs/frame.
     log_path : str or None
         Path to log file.
     output_dir : str or Path
@@ -201,8 +205,8 @@ def run_md(
     model_name : str
         MLIP model name.
     csv_flush_every : int
-        Append buffered rows to md_energy.csv every N log calls so the file
-        grows incrementally instead of appearing only at end of run.
+        Append buffered rows to md_energy.csv every N log_properties calls so
+        the file grows incrementally instead of appearing only at end of run.
 
     (Other parameters as in :func:`setup_dynamics`.)
     """
@@ -248,12 +252,12 @@ def run_md(
 
     traj_mode = "a" if resume else "w"
     traj_writer = Trajectory(str(traj_file), traj_mode, atoms)
-    dyn.attach(traj_writer.write, interval=interval)
+    dyn.attach(traj_writer.write, interval=traj_interval)
 
     stress_log = (ensemble == "npt")
-    dyn.attach(MDLogger(dyn, atoms, sys.stdout, header=True, stress=stress_log), interval=interval)
+    dyn.attach(MDLogger(dyn, atoms, sys.stdout, header=True, stress=stress_log), interval=log_interval)
     if log_path:
-        dyn.attach(MDLogger(dyn, atoms, log_path, header=True, stress=stress_log), interval=interval)
+        dyn.attach(MDLogger(dyn, atoms, log_path, header=True, stress=stress_log), interval=log_interval)
 
     # Incremental CSV writer: append a batch of buffered rows every
     # csv_flush_every log calls so the file grows during the run and survives
@@ -299,7 +303,7 @@ def run_md(
             _flush_csv()
             flush_counter[0] = 0
 
-    dyn.attach(log_properties, interval=interval)
+    dyn.attach(log_properties, interval=log_interval)
     dyn.run(steps)
     traj_writer.close()
     _flush_csv()  # final tail of buffered rows
