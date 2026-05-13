@@ -180,6 +180,7 @@ def run_md(
     output_dir: str | Path = ".",
     model_name: str = "mlip",
     resume: bool = False,
+    csv_flush_every: int = 100,
 ) -> None:
     """Run molecular dynamics simulation.
 
@@ -199,6 +200,9 @@ def run_md(
         Output directory.
     model_name : str
         MLIP model name.
+    csv_flush_every : int
+        Append buffered rows to md_energy.csv every N log calls so the file
+        grows incrementally instead of appearing only at end of run.
 
     (Other parameters as in :func:`setup_dynamics`.)
     """
@@ -251,27 +255,56 @@ def run_md(
     if log_path:
         dyn.attach(MDLogger(dyn, atoms, log_path, header=True, stress=stress_log), interval=interval)
 
+    # Incremental CSV writer: append a batch of buffered rows every
+    # csv_flush_every log calls so the file grows during the run and survives
+    # mid-trajectory crashes. On a fresh run start with a header; on resume
+    # we leave the existing CSV alone (prior rows already on disk).
+    flush_buffer = {k: [] for k in log_data}
+    csv_columns = list(log_data.keys())
+    if not resume:
+        pd.DataFrame(columns=csv_columns).to_csv(csv_file, index=False)
+    flush_counter = [0]
+
+    def _flush_csv():
+        if not flush_buffer["step"]:
+            return
+        pd.DataFrame(flush_buffer).to_csv(
+            csv_file, mode="a", header=False, index=False,
+        )
+        for k in flush_buffer:
+            flush_buffer[k].clear()
+
     def log_properties():
         step = dyn.get_number_of_steps()
-        log_data["step"].append(step)
-        log_data["time(fs)"].append(step * timestep)
-        log_data["temperature(K)"].append(atoms.get_temperature())
-        log_data["total_energy(eV)"].append(atoms.get_total_energy())
-        log_data["potential_energy(eV)"].append(atoms.get_potential_energy())
-        log_data["kinetic_energy(eV)"].append(atoms.get_kinetic_energy())
-
+        row = {
+            "step": step,
+            "time(fs)": step * timestep,
+            "temperature(K)": atoms.get_temperature(),
+            "total_energy(eV)": atoms.get_total_energy(),
+            "potential_energy(eV)": atoms.get_potential_energy(),
+            "kinetic_energy(eV)": atoms.get_kinetic_energy(),
+        }
         if ensemble == "npt":
             stress = atoms.get_stress(voigt=False)
             pressure_ase = -stress.trace() / 3.0
-            log_data["pressure(GPa)"].append(pressure_ase / GPA_TO_EV_PER_ANG3)
-            log_data["volume(A^3)"].append(atoms.get_volume())
+            row["pressure(GPa)"] = pressure_ase / GPA_TO_EV_PER_ANG3
+            row["volume(A^3)"] = atoms.get_volume()
+
+        for k, v in row.items():
+            log_data[k].append(v)
+            flush_buffer[k].append(v)
+
+        flush_counter[0] += 1
+        if csv_flush_every > 0 and flush_counter[0] >= csv_flush_every:
+            _flush_csv()
+            flush_counter[0] = 0
 
     dyn.attach(log_properties, interval=interval)
     dyn.run(steps)
     traj_writer.close()
+    _flush_csv()  # final tail of buffered rows
 
     df = pd.DataFrame(log_data)
-    df.to_csv(csv_file, index=False)
 
     # Plot energy
     plt.figure(figsize=(8, 5))

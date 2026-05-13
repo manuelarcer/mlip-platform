@@ -51,6 +51,15 @@ def run(
             "of the prior run."
         ),
     ),
+    csv_flush_every: int = typer.Option(
+        100,
+        "--csv-flush-every",
+        help=(
+            "Append buffered MD log rows to md_energy.csv every N log calls "
+            "(default 100). Set 0 to disable incremental writes and only "
+            "flush at end of run."
+        ),
+    ),
 ):
     """
     Run molecular dynamics simulation using a supported MLIP model.
@@ -122,28 +131,11 @@ def run(
     atoms = setup_calculator(atoms, mlip, uma_task, device=device,
                               mace_head=mace_head)
 
-    # Run MD
-    run_md(
-        atoms=atoms,
-        ensemble=ensemble,
-        thermostat=thermostat,
-        barostat=barostat,
-        temperature=temperature,
-        pressure=pressure,
-        timestep=timestep,
-        friction=friction,
-        ttime=ttime,
-        taut=taut,
-        taup=taup,
-        steps=steps,
-        interval=1,
-        output_dir=output_dir,
-        model_name=mlip,
-        resume=resume,
-    )
-
-    # Save parameters (append on resume so the full chain is recorded)
+    # Save parameters before the run starts so the file exists for long runs
+    # (500k+ steps) and is still present if the job dies mid-trajectory.
+    # Appended on resume so the full invocation chain is preserved.
     param_file = output_dir / "md_params.txt"
+    output_dir.mkdir(parents=True, exist_ok=True)
     with open(param_file, "a" if resume else "w", encoding="utf-8") as f:
         if resume:
             f.write("\n--- Resume invocation ---\n")
@@ -182,6 +174,27 @@ def run(
         f.write(f"Number of steps:   {steps}\n")
         f.write(f"Timestep (fs):     {timestep}\n")
         f.write(f"Output dir:        {output_dir.resolve()}\n")
+
+    # Run MD
+    run_md(
+        atoms=atoms,
+        ensemble=ensemble,
+        thermostat=thermostat,
+        barostat=barostat,
+        temperature=temperature,
+        pressure=pressure,
+        timestep=timestep,
+        friction=friction,
+        ttime=ttime,
+        taut=taut,
+        taup=taup,
+        steps=steps,
+        interval=1,
+        output_dir=output_dir,
+        model_name=mlip,
+        resume=resume,
+        csv_flush_every=csv_flush_every,
+    )
 
     # List output files
     typer.echo("\n✅ MD complete. Output written to:")
