@@ -1,6 +1,7 @@
 """Shared utilities for CLI commands."""
 import functools
 from importlib.metadata import distribution, PackageNotFoundError
+from pathlib import Path
 
 import typer
 
@@ -92,6 +93,79 @@ CHGNET_AVAILABLE = _check_chgnet()
 # MLIP detection / validation
 # ---------------------------------------------------------------------------
 
+# Base URL for the install recipes on GitHub. Update if the repo moves.
+_INSTALL_DOCS_BASE = (
+    "https://github.com/manuelarcer/mlip-platform/blob/main/docs/install"
+)
+
+# MLIP tag → recipe path (filename, optionally with #anchor). Unknown
+# `uma-*` and `mace-mh-*` tags fall through to the package-level recipe
+# without an anchor — see `_recipe_for_tag`.
+_TAG_TO_RECIPE = {
+    "mace": "mace.md#mace",
+    "mace-mh-0": "mace.md#mace-mh-0",
+    "mace-mh-1": "mace.md#mace-mh-1",
+    "uma-s-1p2": "uma.md#uma-s-1p2",
+    "7net-mf-ompa": "sevenn.md",
+    "chgnet": "chgnet.md",
+}
+
+
+def _recipe_for_tag(mlip: str) -> str:
+    """Return the recipe path for an MLIP tag (file, optionally with anchor).
+
+    Returns an empty string for unrecognised tags.
+    """
+    if mlip in _TAG_TO_RECIPE:
+        return _TAG_TO_RECIPE[mlip]
+    if mlip.startswith("uma-"):
+        return "uma.md"
+    if mlip.startswith("mace-mh-"):
+        return "mace.md"
+    return ""
+
+
+def _install_message(label: str, mlip: str) -> str:
+    """Format a 'not available' error pointing at the install recipe.
+
+    Always prints the absolute GitHub URL. Additionally prints the
+    repo-relative local path if the recipe file is on disk (source
+    checkouts / editable installs).
+    """
+    recipe = _recipe_for_tag(mlip)
+    if not recipe:
+        return (
+            f"{label} not available, and no install recipe is registered for "
+            f"tag '{mlip}'. Browse recipes: {_INSTALL_DOCS_BASE}/README.md"
+        )
+
+    recipe_file = recipe.split("#", 1)[0]
+    url = f"{_INSTALL_DOCS_BASE}/{recipe}"
+    repo_root = Path(__file__).resolve().parents[3]
+    on_disk = (repo_root / "docs" / "install" / recipe_file).exists()
+
+    msg = f"{label} not available. See install recipe:\n  Online: {url}"
+    if on_disk:
+        msg += f"\n  Local:  docs/install/{recipe}"
+    return msg
+
+
+def _no_mlip_message() -> str:
+    """Message printed by `detect_mlip` when nothing is installed."""
+    url = f"{_INSTALL_DOCS_BASE}/README.md"
+    repo_root = Path(__file__).resolve().parents[3]
+    on_disk = (repo_root / "docs" / "install" / "README.md").exists()
+
+    msg = (
+        "No supported MLIP installed. Pick one and follow its install recipe "
+        "(each MLIP needs its own env — see ADR 0001):\n"
+        f"  Online: {url}"
+    )
+    if on_disk:
+        msg += "\n  Local:  docs/install/README.md"
+    return msg
+
+
 def detect_mlip() -> str:
     """Detect available MLIP model in order of preference: UMA > SevenNet > MACE > CHGNet.
 
@@ -114,9 +188,7 @@ def detect_mlip() -> str:
     elif CHGNET_AVAILABLE:
         return "chgnet"
     else:
-        raise typer.Exit(
-            "No supported MLIP found. Please install UMA (fairchem-core), SevenNet, MACE, or CHGNet."
-        )
+        raise typer.Exit(_no_mlip_message())
 
 
 def validate_mlip(mlip: str) -> None:
@@ -136,21 +208,22 @@ def validate_mlip(mlip: str) -> None:
         return
 
     if mlip == "mace" and not MACE_AVAILABLE:
-        raise typer.Exit("MACE not available. Install with: pip install mace-torch")
+        raise typer.Exit(_install_message("MACE", mlip))
     elif mlip == "7net-mf-ompa" and not SEVENN_AVAILABLE:
-        raise typer.Exit("SevenNet not available. Install with: pip install sevenn")
+        raise typer.Exit(_install_message("SevenNet", mlip))
     elif mlip.startswith("uma-") and not FAIRCHEM_AVAILABLE:
-        raise typer.Exit("UMA not available. Install with: pip install fairchem-core")
+        raise typer.Exit(_install_message("UMA", mlip))
     elif mlip == "chgnet" and not CHGNET_AVAILABLE:
-        raise typer.Exit("CHGNet not available. Install with: pip install chgnet")
+        raise typer.Exit(_install_message("CHGNet", mlip))
     elif mlip.startswith("mace-mh-") and not MACE_AVAILABLE:
-        raise typer.Exit("MACE not available. Install with: pip install mace-torch")
+        raise typer.Exit(_install_message("MACE", mlip))
     elif not (mlip in ["mace", "7net-mf-ompa", "chgnet"]
               or mlip.startswith("uma-")
               or mlip.startswith("mace-mh-")):
         raise typer.Exit(
             f"Unknown MLIP: {mlip}. Use any 'uma-*' tag (e.g. 'uma-s-1p2'), "
-            f"'mace', '7net-mf-ompa', or 'chgnet'."
+            f"'mace', 'mace-mh-1', '7net-mf-ompa', or 'chgnet'. "
+            f"See {_INSTALL_DOCS_BASE}/README.md for install recipes."
         )
 
 
