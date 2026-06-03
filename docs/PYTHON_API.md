@@ -6,7 +6,7 @@ The CLI commands wrap a small set of pure-Python functions and one class. This p
 
 | Module | Public symbol | Purpose |
 |--------|---------------|---------|
-| `mlip_platform.cli.utils` | `setup_calculator(atoms, mlip, uma_task)` | Attach the right MLIP calculator to an `Atoms` object |
+| `mlip_platform.cli.utils` | `setup_calculator(atoms, mlip, uma_task="omat", device="auto", mace_head="omat_pbe")` | Attach the right MLIP calculator to an `Atoms` object |
 | `mlip_platform.cli.utils` | `detect_mlip()` / `validate_mlip(name)` / `resolve_mlip(name)` | Auto-detect / validate MLIP availability |
 | `mlip_platform.core.optimize` | `run_optimization(atoms, ...)` | Geometry optimization with progress logging and plots |
 | `mlip_platform.core.optimize` | `OPTIMIZER_MAP` | dict of supported ASE optimizers |
@@ -34,10 +34,13 @@ setup_calculator(atoms, mlip="uma-s-1p2", uma_task="omat")  # mutates atoms.calc
 
 `setup_calculator` accepts:
 
-- `mlip="mace"` → MACE MP medium (CPU)
+- `mlip="mace"` → MACE-MP-0 medium
+- `mlip="mace-mh-1"` (or any `mace-mh-*`) → multi-head MACE foundation model; `mace_head` selects the head (`omat_pbe` default, `oc20_usemppbe`, `matpes_r2scan`, `mp_pbe_refit_add`, `omol`, `spice_wB97M`)
 - `mlip="7net-mf-ompa"` → SevenNet 7net-mf-ompa (mpa modal)
 - `mlip="uma-..."` → any FAIRChem UMA tag, with `uma_task` selecting the head (`omat`, `oc20`, `omol`, `odac`)
 - `mlip="chgnet"` → CHGNet default model
+
+`device` selects the compute device (`"auto"` → cuda if available else cpu, or force `"cuda"` / `"cpu"`). `mace_head` is ignored for non-MH models; `uma_task` is ignored for non-UMA models.
 
 Auto-detection is also exposed:
 
@@ -66,6 +69,7 @@ converged = run_optimization(
     optimizer="bfgs",   # or "fire", "lbfgs", "bfgsls", "gpmin", "mdmin"
     fmax=0.05,
     max_steps=200,
+    relax_cell=False,   # True → also relax the cell (VASP ISIF=3-equivalent)
     output_dir="./relaxed",
     model_name="uma-s-1p2",
 )
@@ -102,7 +106,8 @@ run_md(
     timestep=1.0,
     friction=0.01,
     steps=10000,
-    interval=10,
+    log_interval=10,    # rows appended to md_energy.csv every N steps
+    traj_interval=100,  # frames written to md.traj every N steps
     output_dir="./md",
     model_name="uma-s-1p2",
 )
@@ -188,10 +193,10 @@ neb.export_poscars()
 | `optimize_endpoints(endpoint_fmax=0.01, optimizer="BFGS", max_steps=200)` | Pre-relax both endpoints, return a results dict and write `initial_opt.*` / `final_opt.*` |
 | `run_neb(optimizer=FIRE, trajectory="A2B.traj", full_traj="A2B_full.traj", climb=False, max_steps=600)` | Run NEB optimization, return the final image list |
 | `run_autoneb(n_simul, n_max, k, climb, optimizer, space_energy_ratio, interpolate_method, maxsteps, prefix)` | Run AutoNEB with dynamic image insertion |
-| `process_results()` | Returns a pandas `DataFrame` with one row per image: image index, energy, relative energy, force info |
+| `process_results()` | Returns a pandas `DataFrame` with one row per image and columns `image_index`, `energy`, `relative_energy` |
 | `plot_results(df)` | Saves `neb_energy.png` (smoothed energy profile, barrier annotation) |
 | `export_poscars()` | Writes `00/POSCAR`, `01/POSCAR`, ... for every image |
-| `CustomNEB.load_from_restart(output_dir, **overrides)` | Class method; reload a previous run from `A2B_full.traj` + `neb_parameters.txt`, with optional MLIP / fmax / k / climb / optimizer overrides |
+| `CustomNEB.load_from_restart(output_dir, mlip=None, uma_task=None, fmax=None, logfile=None, k=None, climb=None, neb_optimizer=None, neb_max_steps=None)` | Class method; reload a previous run from `A2B_full.traj` + `neb_parameters.txt`. Any non-`None` keyword overrides the corresponding saved parameter |
 
 `load_from_restart` is the entry point used by `neb run --restart`. It returns `(neb_instance, loaded_params)`.
 

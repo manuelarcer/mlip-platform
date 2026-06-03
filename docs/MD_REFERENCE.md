@@ -80,8 +80,13 @@ Nose-Hoover requires a recent ASE; the platform raises `ImportError` if it is mi
 | `--ttime` | `25.0` | fs | Time constant for Nose-Hoover and NPT (MTK) |
 | `--taut` | `100.0` | fs | Berendsen temperature coupling time |
 | `--taup` | `1000.0` | fs | Berendsen pressure coupling time (NPT Berendsen only) |
-| `--mlip` | `auto` | — | MLIP model; auto-detect or explicit (`uma-s-1p2`, `mace`, `7net-mf-ompa`, `chgnet`, …) |
+| `--mlip` | `auto` | — | MLIP model; auto-detect or explicit (`uma-s-1p2`, `mace`, `mace-mh-1`, `7net-mf-ompa`, `chgnet`, …) |
 | `--uma-task` | `omat` | — | Task head for UMA models: `omat`, `oc20`, `omol`, `odac` |
+| `--mace-head` | `omat_pbe` | — | Head for multi-head MACE foundation models (`mace-mh-*`): `omat_pbe`, `oc20_usemppbe`, `matpes_r2scan`, `mp_pbe_refit_add`, `omol`, `spice_wB97M`. Ignored for non-MH MACE |
+| `--device` | `auto` | — | Compute device: `auto` (cuda if available, else cpu), `cuda`, or `cpu`. On multi-GPU nodes use `CUDA_VISIBLE_DEVICES` to pick the GPU |
+| `--log-interval` | `10` | steps | Append a row to `md_energy.csv` (and drive the stdout MDLogger) every N steps. At dt=0.5 fs, 10 → one row every 5 fs |
+| `--traj-interval` | `100` | steps | Write a frame to `md.traj` every N steps. Lower for finer dynamics; raise to shrink disk |
+| `--csv-flush-every` | `100` | log calls | Flush buffered `md_energy.csv` rows to disk every N log calls. `0` disables incremental writes (flush only at end) |
 | `--resume` | off | flag | Continue an existing run in the structure's directory. The last frame of `md.traj` is loaded as the starting state, momenta are preserved (no Maxwell-Boltzmann re-init), and `--steps` is interpreted as *additional* steps. New rows append to `md_energy.csv` and the trajectory; `md_params.txt` gets a `--- Resume invocation ---` block appended. Plots are regenerated over the full chain. |
 
 **Not exposed on the CLI** but used internally with sensible defaults:
@@ -112,7 +117,7 @@ Every `md run` invocation writes the following to the directory containing the i
 
 | File | Contents |
 |------|----------|
-| `md.traj` | Full ASE trajectory (every `interval` steps) |
+| `md.traj` | Full ASE trajectory (every `--traj-interval` steps) |
 | `md_energy.csv` | Step, time (fs), temperature (K), total / potential / kinetic energy (eV); plus `pressure(GPa)` and `volume(A^3)` columns for NPT |
 | `md_energy.png` | Total / potential / kinetic energy vs time |
 | `md_temperature.png` | Temperature vs time, with target line for NVT/NPT |

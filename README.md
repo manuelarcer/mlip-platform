@@ -17,6 +17,8 @@ Supports **UMA** (FAIRChem), **SevenNet** (7net), and **MACE** models with autom
 - Unified CLI commands: `optimize run`, `md run`, `neb run`, `autoneb run`
 - Auto-detection of available MLIP models (UMA > SevenNet > MACE)
 - UMA model support with multiple task types (OMat, OC20, OMol, ODAC)
+- MACE multi-head foundation models (`mace-mh-*`) with selectable heads (`omat_pbe`, `oc20_usemppbe`, `matpes_r2scan`, …)
+- GPU/CPU selection via `--device` (`auto`/`cuda`/`cpu`) on all run commands
 - Geometry optimization with multiple optimizers (FIRE, BFGS, LBFGS, BFGSLineSearch, GPMin, MDMin)
 - MD with NVE, NVT, and NPT ensembles
 - Configurable thermostats (Langevin, Nose-Hoover, Berendsen) and barostats (MTK NPT, Berendsen NPT)
@@ -76,6 +78,20 @@ The package installs the following entry points:
 
 `mlip <subcmd>` is equivalent to running `<subcmd>` directly. For example, `mlip md run --structure POSCAR` and `md run --structure POSCAR` do the same thing. The examples below use the standalone form for brevity. All commands support `--help`.
 
+### Common model options
+
+These apply to `optimize`, `md`, `neb`, `autoneb`, and `benchmark`:
+
+- `--mlip`: Model tag. `auto` (default) picks the first installed in order **UMA → SevenNet → MACE → CHGNet**, or pass an explicit tag: any `uma-*` (e.g. `uma-s-1p2`), `mace` (MACE-MP-0), `mace-mh-1` (multi-head foundation), `7net-mf-ompa`, `chgnet`.
+- `--uma-task`: Task head for UMA models — `omat` (default, bulk inorganic), `oc20` (catalysis/surfaces), `omol` (molecules), `odac`. Ignored for non-UMA models.
+- `--mace-head`: Head for multi-head MACE models (`mace-mh-*`) — `omat_pbe` (default), `oc20_usemppbe`, `matpes_r2scan`, `mp_pbe_refit_add`, `omol`, `spice_wB97M`. Ignored for plain `mace`.
+- `--device`: `auto` (default; cuda if available, else cpu), `cuda`, or `cpu`. On multi-GPU nodes set `CUDA_VISIBLE_DEVICES` to choose the GPU.
+
+**Example (multi-head MACE on a catalysis surface, forced to GPU):**
+```bash
+optimize run --structure POSCAR --mlip mace-mh-1 --mace-head oc20_usemppbe --device cuda
+```
+
 ### Geometry Optimization
 ```bash
 optimize run --structure path/to/structure.vasp
@@ -86,10 +102,16 @@ optimize run --structure path/to/structure.vasp
 - `--optimizer`: Algorithm (default: `bfgs`; also `fire`, `lbfgs`, `bfgsls`, `gpmin`, `mdmin`)
 - `--fmax`: Force convergence threshold in eV/Å (default: `0.05`)
 - `--max-steps`: Maximum optimization steps (default: `200`)
+- `--relax-cell`: Also relax the simulation cell (VASP ISIF=3-equivalent), wrapping the atoms in ASE's `FrechetCellFilter`. Off by default (positions only).
 
-**Example:**
+**Example (positions only):**
 ```bash
 optimize run --structure POSCAR --mlip uma-s-1p2 --optimizer fire --fmax 0.05
+```
+
+**Example (full cell + positions relaxation):**
+```bash
+optimize run --structure POSCAR --relax-cell --optimizer fire --fmax 0.02
 ```
 
 **Outputs:** `opt.traj`, `opt.log`, `opt_convergence.csv`, `opt_convergence.png`, `opt_final.vasp`, `opt_params.txt`
@@ -109,6 +131,9 @@ md run --structure path/to/structure.vasp
 - `--timestep`: Timestep in fs
 - `--thermostat`: For NVT (`langevin`, `nose-hoover`, `berendsen`)
 - `--barostat`: For NPT (`npt`, `berendsen`)
+- `--log-interval`: Append a row to `md_energy.csv` every N steps (default: 10)
+- `--traj-interval`: Write a frame to `md.traj` every N steps (default: 100)
+- `--resume`: Continue an existing run — loads the last frame of `md.traj`, preserves momenta, and treats `--steps` as *additional* steps
 - `--mlip`: Model choice (default: `auto`)
 
 For the full MD parameter list, defaults, recommended values for solids, and worked examples, see [MD_REFERENCE.md](docs/MD_REFERENCE.md).
@@ -121,6 +146,11 @@ md run --structure POSCAR --ensemble nvt --temperature 300 --steps 5000 --thermo
 **Example (NPT with Berendsen barostat):**
 ```bash
 md run --structure POSCAR --ensemble npt --temperature 300 --pressure 0.0 --steps 10000 --barostat berendsen
+```
+
+**Example (extend a finished run by 5000 more steps):**
+```bash
+md run --structure POSCAR --resume --steps 5000
 ```
 
 **Outputs:** `md.traj`, `md_energy.csv`, `md_energy.png`, `md_temperature.png`, `md_pressure.png` (NPT), `md_volume.png` (NPT), `md_params.txt`
