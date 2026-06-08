@@ -310,19 +310,36 @@ def run_md(
 
     df = pd.DataFrame(log_data)
 
-    # Plot energy
-    plt.figure(figsize=(8, 5))
-    plt.plot(df["time(fs)"], df["total_energy(eV)"], label="Total", linewidth=1.5)
-    plt.plot(df["time(fs)"], df["potential_energy(eV)"], label="Potential", alpha=0.7)
-    plt.plot(df["time(fs)"], df["kinetic_energy(eV)"], label="Kinetic", alpha=0.7)
-    plt.xlabel("Time (fs)")
-    plt.ylabel("Energy (eV)")
-    plt.title(f"MD Energy ({ensemble.upper()})")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(energy_plot, dpi=150)
-    plt.close()
+    # Plot energy: potential/total on the left axis, kinetic on a twin
+    # right axis -- kinetic is orders of magnitude smaller than |E_pot|,
+    # so a shared axis flattens every trace into a featureless line.
+    # Offset the two y-ranges so the traces occupy separate halves.
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(df["time(fs)"], df["total_energy(eV)"], label="Total", linewidth=1.5)
+    ax.plot(df["time(fs)"], df["potential_energy(eV)"], label="Potential", alpha=0.7)
+    ax2 = ax.twinx()
+    ax2.plot(df["time(fs)"], df["kinetic_energy(eV)"], color="tab:purple",
+             alpha=0.7, label="Kinetic (right)")
+    lo1 = min(df["total_energy(eV)"].min(), df["potential_energy(eV)"].min())
+    hi1 = max(df["total_energy(eV)"].max(), df["potential_energy(eV)"].max())
+    r1 = float(hi1 - lo1) or 1.0
+    ax.set_ylim(lo1 - 0.05 * r1, hi1 + 1.15 * r1)
+    lo2 = df["kinetic_energy(eV)"].min()
+    hi2 = df["kinetic_energy(eV)"].max()
+    r2 = float(hi2 - lo2) or 1.0
+    ax2.set_ylim(lo2 - 1.15 * r2, hi2 + 0.05 * r2)
+    ax.set_xlabel("Time (fs)")
+    ax.set_ylabel("Energy (eV)")
+    ax2.set_ylabel("Kinetic energy (eV)", color="tab:purple")
+    ax2.tick_params(axis="y", labelcolor="tab:purple")
+    ax.set_title(f"MD Energy ({ensemble.upper()})")
+    handles, labels = ax.get_legend_handles_labels()
+    h2, l2 = ax2.get_legend_handles_labels()
+    ax.legend(handles + h2, labels + l2)
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(energy_plot, dpi=150)
+    plt.close(fig)
 
     # Plot temperature
     plt.figure(figsize=(8, 5))
