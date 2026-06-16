@@ -581,7 +581,7 @@ class CustomNEB:
         list[ase.Atoms]
             Optimized NEB images.
         """
-        neb = NEB(self.images, climb=climb)
+        neb = NEB(self.images, climb=climb, method="improvedtangent")
         for image in self.images:
             image.calc = self.setup_calculator()
 
