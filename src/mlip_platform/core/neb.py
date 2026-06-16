@@ -54,6 +54,8 @@ class CustomNEB:
         IDPP is skipped when this is set.
     logfile : str
         Name of the log file for NEB iteration logging.
+    device : str
+        Compute device for the MLIP calculator ('cpu' or 'cuda').
     """
 
     def __init__(
@@ -69,6 +71,7 @@ class CustomNEB:
         output_dir: str | Path = ".",
         relax_atoms: Optional[list[int]] = None,
         logfile: str = "neb.log",
+        device: str = "cpu",
     ) -> None:
         self.initial = initial
         final.set_cell(initial.get_cell(), scale_atoms=True)
@@ -79,6 +82,7 @@ class CustomNEB:
         self.fmax = fmax
         self.mlip = mlip
         self.uma_task = uma_task
+        self.device = device
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.relax_atoms = relax_atoms
@@ -120,6 +124,7 @@ class CustomNEB:
         key_parsers = {
             "MLIP model": ("mlip", str),
             "UMA task": ("uma_task", str),
+            "Device": ("device", str),
             "Initial": ("initial", str),
             "Final": ("final", str),
             "Intermediate images": ("num_images", int),
@@ -187,6 +192,7 @@ class CustomNEB:
         climb: Optional[bool] = None,
         neb_optimizer: Optional[str] = None,
         neb_max_steps: Optional[int] = None,
+        device: Optional[str] = None,
     ) -> tuple["CustomNEB", dict]:
         """Load a CustomNEB instance from existing restart files.
 
@@ -247,6 +253,7 @@ class CustomNEB:
         uma_task = uma_task or params.get("uma_task", "omat")
         fmax = fmax if fmax is not None else params["fmax"]
         logfile = logfile or params.get("log", "neb.log")
+        device = device if device is not None else params.get("device", "cpu")
 
         # Build instance without calling __init__
         instance = cls.__new__(cls)
@@ -258,6 +265,7 @@ class CustomNEB:
         instance.fmax = fmax
         instance.mlip = mlip
         instance.uma_task = uma_task
+        instance.device = device
         instance.output_dir = output_dir
         instance.logfile = logfile
         instance.relax_atoms = params.get("relax_atoms")
@@ -295,19 +303,21 @@ class CustomNEB:
         model = model or self.mlip
         uma_task = uma_task or self.uma_task
 
+        device = getattr(self, "device", "cpu")
+
         if model == "7net-mf-ompa":
             from sevenn.calculator import SevenNetCalculator
-            return SevenNetCalculator(model, modal="mpa")
+            return SevenNetCalculator(model, modal="mpa", device=device)
         elif model == "mace":
             from mace.calculators import mace_mp
-            return mace_mp(model="medium", device="cpu")
+            return mace_mp(model="medium", device=device)
         elif model.startswith("uma-"):
             from fairchem.core import FAIRChemCalculator, pretrained_mlip
-            predictor = pretrained_mlip.get_predict_unit(model, device="cpu")
+            predictor = pretrained_mlip.get_predict_unit(model, device=device)
             return FAIRChemCalculator(predictor, task_name=uma_task)
         elif model == "chgnet":
             from chgnet.model.dynamics import CHGNetCalculator
-            return CHGNetCalculator()
+            return CHGNetCalculator(use_device=device)
         else:
             raise ValueError(f"Unknown model: {model}")
 

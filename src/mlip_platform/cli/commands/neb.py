@@ -70,7 +70,7 @@ def create_backup_folder(output_dir: Path):
 
 
 def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
-                    neb_optimizer, neb_max_steps):
+                    neb_optimizer, neb_max_steps, device):
     """Handle NEB restart mode.
 
     Returns
@@ -92,6 +92,7 @@ def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
             output_dir=output_dir, mlip=mlip, uma_task=uma_task,
             fmax=fmax, logfile=log, k=k, climb=climb,
             neb_optimizer=neb_optimizer, neb_max_steps=neb_max_steps,
+            device=device,
         )
     except (FileNotFoundError, ValueError, RuntimeError) as e:
         typer.echo(f"Error: {e}")
@@ -161,6 +162,7 @@ def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
         "num_images": loaded_params["num_images"],
         "total_images": loaded_params["total_images"],
         "relax_atoms": loaded_params.get("relax_atoms"),
+        "device": device if device is not None else loaded_params.get("device", "cpu"),
         "optimize_endpoints": False,
     }
 
@@ -169,6 +171,7 @@ def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
         "Restarted from:": backup_dir.name,
         "MLIP model:": params["mlip"],
         **({f"UMA task:": params["uma_task"]} if params["mlip"].startswith("uma-") else {}),
+        "Device:": params["device"],
         "Initial:": "(from restart)",
         "Final:": "(from restart)",
         "Intermediate images:": params["num_images"],
@@ -193,7 +196,7 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
                     interp_steps, fmax, mlip, uma_task, log, k, climb,
                     neb_optimizer, neb_max_steps, optimize_endpoints,
                     endpoint_fmax, endpoint_optimizer, endpoint_max_steps,
-                    relax_atoms_str):
+                    relax_atoms_str, device):
     """Handle normal (non-restart) NEB mode.
 
     Returns
@@ -222,6 +225,7 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
     endpoint_fmax = endpoint_fmax or 0.01
     endpoint_optimizer = endpoint_optimizer or "bfgs"
     endpoint_max_steps = endpoint_max_steps or 200
+    device = device or "cpu"
 
     atoms_initial = read(initial, format="vasp")
     atoms_final = read(final, format="vasp")
@@ -248,12 +252,14 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
         "neb_max_steps": neb_max_steps, "log": log,
         "num_images": num_images, "total_images": total_images,
         "relax_atoms": relax_indices, "optimize_endpoints": optimize_endpoints,
+        "device": device,
     }
 
     # Write parameter file
     param_dict = {
         "MLIP model:": mlip,
         **({f"UMA task:": uma_task} if mlip.startswith("uma-") else {}),
+        "Device:": device,
         "Initial:": str(initial),
         "Final:": str(final),
         "Intermediate images:": num_images,
@@ -284,7 +290,7 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
         num_images=num_images, interp_fmax=interp_fmax,
         interp_steps=interp_steps, fmax=fmax, mlip=mlip,
         uma_task=uma_task, output_dir=output_dir,
-        relax_atoms=relax_indices, logfile=log,
+        relax_atoms=relax_indices, logfile=log, device=device,
     )
 
     # Optimize endpoints
@@ -324,6 +330,7 @@ def run(
     endpoint_fmax: float = typer.Option(None, help="Force threshold for endpoint optimization (eV/Ang)"),
     endpoint_optimizer: str = typer.Option(None, help="Optimizer for endpoints: 'bfgs', 'lbfgs', 'fire'"),
     endpoint_max_steps: int = typer.Option(None, help="Maximum steps for endpoint optimization"),
+    device: str = typer.Option(None, help="Compute device for the MLIP calculator: 'cpu' (default) or 'cuda'"),
 ):
     """Run Nudged Elastic Band (NEB) calculation."""
     output_dir = Path.cwd()
@@ -344,7 +351,7 @@ def run(
         neb_obj, params = _handle_restart(
             output_dir, mlip=mlip, uma_task=uma_task, fmax=fmax, log=log,
             k=k, climb=climb, neb_optimizer=neb_optimizer,
-            neb_max_steps=neb_max_steps,
+            neb_max_steps=neb_max_steps, device=device,
         )
         typer.echo("Skipping interpolation (loaded from restart)")
     else:
@@ -357,7 +364,7 @@ def run(
             optimize_endpoints=optimize_endpoints, endpoint_fmax=endpoint_fmax,
             endpoint_optimizer=endpoint_optimizer,
             endpoint_max_steps=endpoint_max_steps,
-            relax_atoms_str=relax_atoms,
+            relax_atoms_str=relax_atoms, device=device,
         )
 
     # ---- Run NEB optimization ----
