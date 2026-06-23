@@ -47,6 +47,8 @@ class CustomNEB:
         MLIP model name.
     uma_task : str
         Task name for UMA models.
+    mace_head : str
+        Head name for multi-head MACE foundation models (mace-mh-*).
     output_dir : str or Path
         Output directory for results.
     relax_atoms : list[int] or None
@@ -68,6 +70,7 @@ class CustomNEB:
         fmax: float = 0.05,
         mlip: str = "7net-mf-ompa",
         uma_task: str = "omat",
+        mace_head: str = "omat_pbe",
         output_dir: str | Path = ".",
         relax_atoms: Optional[list[int]] = None,
         logfile: str = "neb.log",
@@ -82,6 +85,7 @@ class CustomNEB:
         self.fmax = fmax
         self.mlip = mlip
         self.uma_task = uma_task
+        self.mace_head = mace_head
         self.device = device
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -124,6 +128,7 @@ class CustomNEB:
         key_parsers = {
             "MLIP model": ("mlip", str),
             "UMA task": ("uma_task", str),
+            "MACE head": ("mace_head", str),
             "Device": ("device", str),
             "Initial": ("initial", str),
             "Final": ("final", str),
@@ -186,6 +191,7 @@ class CustomNEB:
         output_dir: str | Path = ".",
         mlip: Optional[str] = None,
         uma_task: Optional[str] = None,
+        mace_head: Optional[str] = None,
         fmax: Optional[float] = None,
         logfile: Optional[str] = None,
         k: Optional[float] = None,
@@ -251,6 +257,7 @@ class CustomNEB:
             mlip = original_mlip
 
         uma_task = uma_task or params.get("uma_task", "omat")
+        mace_head = mace_head or params.get("mace_head", "omat_pbe")
         fmax = fmax if fmax is not None else params["fmax"]
         logfile = logfile or params.get("log", "neb.log")
         device = device if device is not None else params.get("device", "cpu")
@@ -265,6 +272,7 @@ class CustomNEB:
         instance.fmax = fmax
         instance.mlip = mlip
         instance.uma_task = uma_task
+        instance.mace_head = mace_head
         instance.device = device
         instance.output_dir = output_dir
         instance.logfile = logfile
@@ -286,7 +294,8 @@ class CustomNEB:
     # Calculator
     # ------------------------------------------------------------------
 
-    def setup_calculator(self, model: Optional[str] = None, uma_task: Optional[str] = None):
+    def setup_calculator(self, model: Optional[str] = None, uma_task: Optional[str] = None,
+                         mace_head: Optional[str] = None):
         """Create and return an MLIP calculator.
 
         Parameters
@@ -295,6 +304,9 @@ class CustomNEB:
             Model name (default: ``self.mlip``).
         uma_task : str, optional
             UMA task name (default: ``self.uma_task``).
+        mace_head : str, optional
+            Head name for multi-head MACE foundation models (mace-mh-*)
+            (default: ``self.mace_head``).
 
         Returns
         -------
@@ -302,6 +314,7 @@ class CustomNEB:
         """
         model = model or self.mlip
         uma_task = uma_task or self.uma_task
+        mace_head = mace_head or getattr(self, "mace_head", "omat_pbe")
 
         device = getattr(self, "device", "cpu")
 
@@ -311,6 +324,11 @@ class CustomNEB:
         elif model == "mace":
             from mace.calculators import mace_mp
             return mace_mp(model="medium", device=device)
+        elif model.startswith("mace-mh-"):
+            from mace.calculators import MACECalculator
+            from mlip_platform.cli.utils import _ensure_mace_foundation_checkpoint
+            ckpt = _ensure_mace_foundation_checkpoint(model)
+            return MACECalculator(model_paths=ckpt, device=device, head=mace_head)
         elif model.startswith("uma-"):
             from fairchem.core import FAIRChemCalculator, pretrained_mlip
             predictor = pretrained_mlip.get_predict_unit(model, device=device)

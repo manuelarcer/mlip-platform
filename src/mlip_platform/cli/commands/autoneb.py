@@ -7,7 +7,7 @@ from ase.optimize import FIRE
 
 from mlip_platform.core.neb import CustomNEB
 from mlip_platform.core.params_io import write_parameters_file, write_endpoint_results
-from mlip_platform.cli.utils import MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
+from mlip_platform.cli.utils import MACE_HEAD_HELP, MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
 
 app = typer.Typer()
 
@@ -21,6 +21,7 @@ def run(
     fmax: float = typer.Option(0.05, help="Force convergence threshold (eV/Ang)"),
     mlip: str = typer.Option("auto", help=MLIP_HELP),
     uma_task: str = typer.Option("omat", help=UMA_TASK_HELP),
+    mace_head: str = typer.Option("omat_pbe", help=MACE_HEAD_HELP),
     climb: bool = typer.Option(True, help="Enable climbing image NEB"),
     k: float = typer.Option(0.1, help="Spring constant"),
     space_energy_ratio: float = typer.Option(0.5, help="Preference for geometric (1.0) vs energy (0.0) gaps"),
@@ -49,6 +50,8 @@ def run(
     mlip = resolve_mlip(mlip)
     if mlip.startswith("uma-"):
         typer.echo(f"   UMA task: {uma_task}")
+    if mlip.startswith("mace-mh-"):
+        typer.echo(f"   MACE head: {mace_head}")
 
     output_dir = Path.cwd()
 
@@ -82,6 +85,7 @@ def run(
     param_dict = {
         "MLIP model:": mlip,
         **({f"UMA task:": uma_task} if mlip.startswith("uma-") else {}),
+        **({f"MACE head:": mace_head} if mlip.startswith("mace-mh-") else {}),
         "Initial:": str(initial),
         "Final:": str(final),
         "n_max:": n_max,
@@ -109,7 +113,7 @@ def run(
     neb = CustomNEB(
         initial=atoms_initial, final=atoms_final,
         num_images=5,  # Dummy value, not used by AutoNEB
-        fmax=fmax, mlip=mlip, uma_task=uma_task,
+        fmax=fmax, mlip=mlip, uma_task=uma_task, mace_head=mace_head,
         output_dir=output_dir, relax_atoms=relax_indices,
     )
 
