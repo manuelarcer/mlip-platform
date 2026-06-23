@@ -10,7 +10,7 @@ from ase.optimize import FIRE, MDMin, BFGS, LBFGS
 
 from mlip_platform.core.neb import CustomNEB
 from mlip_platform.core.params_io import write_parameters_file, write_endpoint_results
-from mlip_platform.cli.utils import MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
+from mlip_platform.cli.utils import MACE_HEAD_HELP, MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ def create_backup_folder(output_dir: Path):
     return backup_dir, moved_files
 
 
-def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
+def _handle_restart(output_dir, *, mlip, uma_task, mace_head, fmax, log, k, climb,
                     neb_optimizer, neb_max_steps, device):
     """Handle NEB restart mode.
 
@@ -90,7 +90,7 @@ def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
     try:
         neb_instance, loaded_params = CustomNEB.load_from_restart(
             output_dir=output_dir, mlip=mlip, uma_task=uma_task,
-            fmax=fmax, logfile=log, k=k, climb=climb,
+            mace_head=mace_head, fmax=fmax, logfile=log, k=k, climb=climb,
             neb_optimizer=neb_optimizer, neb_max_steps=neb_max_steps,
             device=device,
         )
@@ -103,6 +103,8 @@ def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
     typer.echo(f"   - MLIP model:          {loaded_params['mlip']}")
     if loaded_params.get("uma_task"):
         typer.echo(f"   - UMA task:            {loaded_params['uma_task']}")
+    if loaded_params.get("mace_head"):
+        typer.echo(f"   - MACE head:           {loaded_params['mace_head']}")
     typer.echo(f"   - Intermediate images: {loaded_params['num_images']}")
     typer.echo(f"   - Total images:        {loaded_params['total_images']}")
     if loaded_params.get("relax_atoms"):
@@ -153,6 +155,7 @@ def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
     params = {
         "mlip": mlip or loaded_params["mlip"],
         "uma_task": uma_task or loaded_params.get("uma_task", "omat"),
+        "mace_head": mace_head or loaded_params.get("mace_head", "omat_pbe"),
         "fmax": fmax if fmax is not None else loaded_params["fmax"],
         "k": k if k is not None else loaded_params.get("k", 0.1),
         "climb": climb if climb is not None else loaded_params.get("climb", True),
@@ -171,6 +174,7 @@ def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
         "Restarted from:": backup_dir.name,
         "MLIP model:": params["mlip"],
         **({f"UMA task:": params["uma_task"]} if params["mlip"].startswith("uma-") else {}),
+        **({f"MACE head:": params["mace_head"]} if params["mlip"].startswith("mace-mh-") else {}),
         "Device:": params["device"],
         "Initial:": "(from restart)",
         "Final:": "(from restart)",
@@ -193,7 +197,7 @@ def _handle_restart(output_dir, *, mlip, uma_task, fmax, log, k, climb,
 
 
 def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
-                    interp_steps, fmax, mlip, uma_task, log, k, climb,
+                    interp_steps, fmax, mlip, uma_task, mace_head, log, k, climb,
                     neb_optimizer, neb_max_steps, optimize_endpoints,
                     endpoint_fmax, endpoint_optimizer, endpoint_max_steps,
                     relax_atoms_str, device):
@@ -226,6 +230,7 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
     endpoint_optimizer = endpoint_optimizer or "bfgs"
     endpoint_max_steps = endpoint_max_steps or 200
     device = device or "cpu"
+    mace_head = mace_head or "omat_pbe"
 
     atoms_initial = read(initial, format="vasp")
     atoms_final = read(final, format="vasp")
@@ -237,6 +242,8 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
     mlip = resolve_mlip(mlip)
     if mlip.startswith("uma-"):
         typer.echo(f"   UMA task: {uma_task}")
+    if mlip.startswith("mace-mh-"):
+        typer.echo(f"   MACE head: {mace_head}")
 
     # Parse relax_atoms
     relax_indices = None
@@ -247,7 +254,8 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
     total_images = num_images + 2
 
     params = {
-        "mlip": mlip, "uma_task": uma_task, "fmax": fmax, "k": k,
+        "mlip": mlip, "uma_task": uma_task, "mace_head": mace_head,
+        "fmax": fmax, "k": k,
         "climb": climb, "neb_optimizer": neb_optimizer,
         "neb_max_steps": neb_max_steps, "log": log,
         "num_images": num_images, "total_images": total_images,
@@ -259,6 +267,7 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
     param_dict = {
         "MLIP model:": mlip,
         **({f"UMA task:": uma_task} if mlip.startswith("uma-") else {}),
+        **({f"MACE head:": mace_head} if mlip.startswith("mace-mh-") else {}),
         "Device:": device,
         "Initial:": str(initial),
         "Final:": str(final),
@@ -289,7 +298,7 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
         initial=atoms_initial, final=atoms_final,
         num_images=num_images, interp_fmax=interp_fmax,
         interp_steps=interp_steps, fmax=fmax, mlip=mlip,
-        uma_task=uma_task, output_dir=output_dir,
+        uma_task=uma_task, mace_head=mace_head, output_dir=output_dir,
         relax_atoms=relax_indices, logfile=log, device=device,
     )
 
@@ -320,6 +329,7 @@ def run(
     fmax: float = typer.Option(None, help="Final NEB force threshold"),
     mlip: str = typer.Option(None, help=MLIP_HELP),
     uma_task: str = typer.Option(None, help=UMA_TASK_HELP),
+    mace_head: str = typer.Option(None, help=MACE_HEAD_HELP),
     relax_atoms: str = typer.Option(None, help="Comma-separated list of atom indices to relax (e.g. '0,1,5'). If set, others are fixed."),
     log: str = typer.Option(None, help="Name for the NEB iteration log file (default: neb.log)"),
     k: float = typer.Option(None, help="Spring constant for NEB"),
@@ -349,7 +359,8 @@ def run(
             raise typer.Exit(code=1)
 
         neb_obj, params = _handle_restart(
-            output_dir, mlip=mlip, uma_task=uma_task, fmax=fmax, log=log,
+            output_dir, mlip=mlip, uma_task=uma_task, mace_head=mace_head,
+            fmax=fmax, log=log,
             k=k, climb=climb, neb_optimizer=neb_optimizer,
             neb_max_steps=neb_max_steps, device=device,
         )
@@ -359,7 +370,7 @@ def run(
             output_dir, initial, final,
             num_images=num_images, interp_fmax=interp_fmax,
             interp_steps=interp_steps, fmax=fmax, mlip=mlip,
-            uma_task=uma_task, log=log, k=k, climb=climb,
+            uma_task=uma_task, mace_head=mace_head, log=log, k=k, climb=climb,
             neb_optimizer=neb_optimizer, neb_max_steps=neb_max_steps,
             optimize_endpoints=optimize_endpoints, endpoint_fmax=endpoint_fmax,
             endpoint_optimizer=endpoint_optimizer,

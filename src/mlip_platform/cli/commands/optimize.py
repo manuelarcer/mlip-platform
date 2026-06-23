@@ -96,6 +96,8 @@ def run(
         f.write("Geometry Optimization Parameters\n")
         f.write("=================================\n")
         f.write(f"MLIP model:        {mlip}\n")
+        if mlip.startswith("uma-"):
+            f.write(f"UMA task:          {uma_task}\n")
         if mlip.startswith("mace-mh-"):
             f.write(f"MACE head:         {mace_head}\n")
         f.write(f"Device:            {device}\n")
