@@ -31,6 +31,7 @@ class TestOptimizationConverges:
         assert (tmp_workdir / "opt_convergence.csv").exists()
         assert (tmp_workdir / "opt_convergence.png").exists()
         assert (tmp_workdir / "opt_final.vasp").exists()
+        assert (tmp_workdir / "CONTCAR").exists()
 
     def test_convergence_csv_has_data(self, tmp_workdir):
         import pandas as pd
