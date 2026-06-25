@@ -99,6 +99,9 @@ def run_optimization(
     csv_file = output_path / f"{logfile_stem}_convergence.csv"
     convergence_plot = output_path / f"{logfile_stem}_convergence.png"
     final_structure = output_path / f"{logfile_stem}_final.vasp"
+    # CONTCAR mirror of the final structure so a follow-up DFT run managed by
+    # asetools can restart from this directory (it reads OUTCAR or CONTCAR).
+    contcar_file = output_path / "CONTCAR"
 
     optimizer_name = optimizer.lower()
     if optimizer_name not in OPTIMIZER_MAP:
@@ -146,6 +149,7 @@ def run_optimization(
                 converged, opt.nsteps, final_energy, final_fmax)
 
     write(str(final_structure), atoms, format="vasp")
+    write(str(contcar_file), atoms, format="vasp")
 
     df = pd.DataFrame(log_data)
     df.to_csv(csv_file, index=False)
