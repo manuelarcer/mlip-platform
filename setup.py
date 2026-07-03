@@ -17,6 +17,17 @@ setup(
         "scipy",
         "asetools",
     ],
+    extras_require={
+        "dev": [
+            "pytest",
+            "pytest-cov",
+            "diff-cover",
+            # mutmut 3.x dropped the --paths-to-mutate CLI flag and requires
+            # pyproject.toml config; this repo has no pyproject.toml.
+            "mutmut>=2.4,<3.0",
+            "pip-audit",
+        ],
+    },
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Science/Research",
