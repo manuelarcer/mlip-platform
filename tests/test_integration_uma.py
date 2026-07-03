@@ -73,7 +73,7 @@ class TestMDUMA:
         atoms, _ = uma_atoms
         run_md(
             atoms, ensemble="nvt", thermostat="langevin",
-            temperature=300, steps=10, interval=5,
+            temperature=300, steps=10, log_interval=5, traj_interval=5,
             output_dir=tmp_workdir,
         )
         assert (tmp_workdir / "md.traj").exists()
