@@ -53,7 +53,7 @@ class TestRunMd:
         atoms.calc = EMT()
 
         run_md(
-            atoms, ensemble="nve", steps=5, interval=1,
+            atoms, ensemble="nve", steps=5, log_interval=1, traj_interval=1,
             output_dir=tmp_workdir,
         )
 
@@ -68,7 +68,7 @@ class TestRunMd:
 
         run_md(
             atoms, ensemble="nvt", thermostat="langevin",
-            temperature=300, steps=5, interval=1,
+            temperature=300, steps=5, log_interval=1, traj_interval=1,
             output_dir=tmp_workdir,
         )
 
@@ -84,7 +84,7 @@ class TestRunMd:
         atoms.calc = EMT()
         run_md(
             atoms, ensemble="nvt", thermostat="langevin",
-            temperature=100, steps=10, interval=2,
+            temperature=100, steps=10, log_interval=2, traj_interval=2,
             output_dir=tmp_workdir, friction=0.05,
         )
         import pandas as pd
@@ -96,7 +96,7 @@ class TestRunMd:
         atoms2.calc = EMT()
         run_md(
             atoms2, ensemble="nvt", thermostat="langevin",
-            temperature=100, steps=10, interval=2,
+            temperature=100, steps=10, log_interval=2, traj_interval=2,
             output_dir=tmp_workdir, friction=0.05, resume=True,
         )
 
@@ -114,6 +114,6 @@ class TestRunMd:
         atoms.calc = EMT()
         with pytest.raises(FileNotFoundError, match="Cannot resume"):
             run_md(
-                atoms, ensemble="nvt", steps=5, interval=1,
+                atoms, ensemble="nvt", steps=5, log_interval=1, traj_interval=1,
                 output_dir=tmp_workdir, resume=True,
             )
