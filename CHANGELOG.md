@@ -4,7 +4,11 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
-(none)
+### Added
+
+- `optimize batch`: relax a series of structures in one process, loading the MLIP model **only once** and reusing it across every relaxation (avoids the per-run model-load cost). Discovers one input structure per immediate subdirectory of `--parent` (default `--input-name '*.vasp'`; the platform's own `*_final.vasp` outputs are ignored), relaxes each in place, continues past failures, and writes a `batch_summary.csv` into `--parent`. Supports `--skip-existing` to resume a partial batch.
+- `build_calculator()` in `mlip_platform.cli.utils`: builds and returns an ASE calculator without attaching it, so the loaded model can be reused across many structures. `setup_calculator()` is now a thin build-and-attach wrapper around it.
+- `optimize run` / `optimize batch` now also write a fixed-name `CONTCAR` (copy of the final relaxed structure) so a follow-up DFT run managed by asetools can restart from the directory.
 
 ## [0.3.0] - 2026-05-08
 

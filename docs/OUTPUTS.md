@@ -7,6 +7,7 @@ Canonical list of every file each CLI command writes. Search this page to find w
 | Command | Output directory |
 |---------|------------------|
 | `optimize run` | Directory containing `--structure` (i.e. `Path(--structure).parent`) |
+| `optimize batch` | One relaxation per immediate subdirectory of `--parent` (outputs written into each subdir); a `batch_summary.csv` is written into `--parent` |
 | `md run` | Directory containing `--structure` |
 | `neb run` | Current working directory at invocation |
 | `autoneb run` | Current working directory at invocation |
@@ -30,6 +31,19 @@ This is not always the same directory the user is sitting in. `optimize` and `md
 | `opt_params.txt` | plain text, key/value | Echo of run parameters (MLIP, optimizer, fmax, max_steps, etc.) |
 
 If you change `--logfile <name>.log`, the convergence CSV / PNG and final POSCAR are renamed accordingly: `<name>.log`, `<name>_convergence.csv`, `<name>_convergence.png`, `<name>_final.vasp`. The `CONTCAR` filename is fixed (it does not follow `--logfile`). The trajectory filename comes from `--trajectory`. **Two relaxations launched in the same directory will overwrite each other** unless you set `--logfile` and `--trajectory` to different names.
+
+---
+
+## `optimize batch`
+
+Relaxes a series of structures in one process, **loading the MLIP model only once** and reusing it across every relaxation (avoids the per-run model-load cost). Discovers one input structure per immediate subdirectory of `--parent` (default `--input-name '*.vasp'`, which expects exactly one `.vasp` file per subdir; the platform's own `*_final.vasp` outputs are ignored). Each structure is optimized in place, producing the same per-directory files as `optimize run` (`opt_final.vasp`, `CONTCAR`, etc.).
+
+A structure that errors or fails to converge is logged and the batch continues. Pass `--skip-existing` to skip subdirectories that already contain a `CONTCAR` (resume a partial batch).
+
+| File | Format | Contents |
+|------|--------|----------|
+| `<subdir>/...` | — | Same files as `optimize run`, one set per subdirectory |
+| `batch_summary.csv` | CSV (in `--parent`) | columns: `subdir`, `status` (`converged` / `not_converged` / `error` / `no_input` / `skipped`), `converged`, `steps`, `energy_eV`, `walltime_s`, `detail` |
 
 ---
 

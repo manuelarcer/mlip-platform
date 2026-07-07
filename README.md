@@ -114,7 +114,21 @@ optimize run --structure POSCAR --mlip uma-s-1p2 --optimizer fire --fmax 0.05
 optimize run --structure POSCAR --relax-cell --optimizer fire --fmax 0.02
 ```
 
-**Outputs:** `opt.traj`, `opt.log`, `opt_convergence.csv`, `opt_convergence.png`, `opt_final.vasp`, `opt_params.txt`
+**Outputs:** `opt.traj`, `opt.log`, `opt_convergence.csv`, `opt_convergence.png`, `opt_final.vasp`, `CONTCAR`, `opt_params.txt`
+
+(`CONTCAR` is a copy of the final structure, named so a follow-up DFT run managed by asetools can restart from the directory.)
+
+#### Batch relaxations (load the model once)
+
+Relax many structures in a single process, loading the MLIP model **only once** and reusing it across every relaxation. Each immediate subdirectory of `--parent` holds one input structure:
+
+```bash
+optimize batch --parent runs/ --mlip uma-s-1p2 --fmax 0.05
+```
+
+- `--input-name`: glob for the input inside each subdir (default `*.vasp`, i.e. exactly one `.vasp` file per subdir; the platform's own `*_final.vasp` outputs are ignored). Use e.g. `POSCAR` for a fixed name.
+- `--skip-existing`: skip subdirs that already have a `CONTCAR` (resume a partial batch).
+- A structure that errors or fails to converge is logged and the batch continues; results are summarized in `batch_summary.csv` written into `--parent`.
 
 ---
 
