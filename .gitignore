@@ -57,5 +57,7 @@ dist/
 command_cache.*
 command_history.*
 
-# Claude Code logs
-.claude/logs/
+# Claude Code local harness state (settings.local.json, env.json, logs).
+# No shared project config lives here yet; if a tracked .claude/settings.json
+# is ever added, switch this to ".claude/*" + "!.claude/settings.json".
+.claude/
