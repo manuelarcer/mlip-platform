@@ -61,6 +61,9 @@ def run(
     trajectory: str = typer.Option("opt.traj", help="Trajectory filename"),
     logfile: str = typer.Option("opt.log", help="Log filename"),
     verbose: bool = typer.Option(True, help="Show optimization progress table (forces, energies)"),
+    no_plot: bool = typer.Option(False, "--no-plot",
+        help="Skip the per-structure convergence PNG (the CSV is still written). "
+             "Speeds up large batches of short relaxations."),
 ):
     """
     Run geometry optimization using a supported MLIP model.
@@ -115,6 +118,7 @@ def run(
         model_name=mlip,
         verbose=verbose,
         relax_cell=relax_cell,
+        plot=not no_plot,
     )
 
     # Save parameters
@@ -184,6 +188,9 @@ def batch(
         False, "--skip-existing",
         help="Skip subdirectories that already contain a CONTCAR (resume a partial batch)."),
     verbose: bool = typer.Option(False, help="Show per-structure optimization progress table"),
+    no_plot: bool = typer.Option(False, "--no-plot",
+        help="Skip the per-structure convergence PNG (the CSV is still written). "
+             "Speeds up large batches of short relaxations."),
 ):
     """
     Relax a series of structures, loading the MLIP model only once.
@@ -263,6 +270,7 @@ def batch(
                 model_name=mlip,
                 verbose=verbose,
                 relax_cell=relax_cell,
+                plot=not no_plot,
             )
             walltime = time.perf_counter() - t0
             energy = atoms.get_potential_energy()
