@@ -3,7 +3,6 @@ import pytest
 from unittest.mock import patch
 
 import typer
-from click.exceptions import Exit as ClickExit
 
 from mlip_platform.cli.utils import (
     detect_mlip,
@@ -18,14 +17,13 @@ from mlip_platform.cli.utils import (
 
 
 class TestDetectMlip:
+    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", True)
     def test_returns_string(self):
-        # Should return a string regardless of what's available
-        try:
-            result = detect_mlip()
-            assert isinstance(result, str)
-        except SystemExit:
-            # No MLIP installed — that's also a valid outcome
-            pass
+        # With a backend available, detect_mlip returns a non-empty model tag.
+        # Mocked so the result does not depend on what is installed in the env.
+        result = detect_mlip()
+        assert isinstance(result, str)
+        assert result
 
     @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", True)
     def test_prefers_uma(self):
@@ -54,7 +52,7 @@ class TestDetectMlip:
     @patch("mlip_platform.cli.utils.MACE_AVAILABLE", False)
     @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", False)
     def test_none_available_raises(self):
-        with pytest.raises((SystemExit, ClickExit)):
+        with pytest.raises(typer.Exit):
             detect_mlip()
 
 
@@ -63,27 +61,27 @@ class TestValidateMlip:
         validate_mlip("auto")  # should not raise
 
     def test_unknown_mlip_raises(self):
-        with pytest.raises((SystemExit, ClickExit)):
+        with pytest.raises(typer.Exit):
             validate_mlip("nonexistent-model")
 
     @patch("mlip_platform.cli.utils.MACE_AVAILABLE", False)
     def test_mace_unavailable_raises(self):
-        with pytest.raises((SystemExit, ClickExit)):
+        with pytest.raises(typer.Exit):
             validate_mlip("mace")
 
     @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", False)
     def test_sevenn_unavailable_raises(self):
-        with pytest.raises((SystemExit, ClickExit)):
+        with pytest.raises(typer.Exit):
             validate_mlip("7net-mf-ompa")
 
     @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
     def test_uma_unavailable_raises(self):
-        with pytest.raises((SystemExit, ClickExit)):
+        with pytest.raises(typer.Exit):
             validate_mlip("uma-s-1p1")
 
     @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", False)
     def test_chgnet_unavailable_raises(self):
-        with pytest.raises((SystemExit, ClickExit)):
+        with pytest.raises(typer.Exit):
             validate_mlip("chgnet")
 
     @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", True)
@@ -118,13 +116,13 @@ class TestParseRelaxAtoms:
         assert result == [0, 1, 5]
 
     def test_invalid_format_raises(self):
-        with pytest.raises((SystemExit, ClickExit)):
+        with pytest.raises(typer.Exit):
             parse_relax_atoms("a,b,c", num_atoms=10)
 
     def test_out_of_range_raises(self):
-        with pytest.raises((SystemExit, ClickExit)):
+        with pytest.raises(typer.Exit):
             parse_relax_atoms("0,1,100", num_atoms=10)
 
     def test_negative_index_raises(self):
-        with pytest.raises((SystemExit, ClickExit)):
+        with pytest.raises(typer.Exit):
             parse_relax_atoms("-1,0,1", num_atoms=10)
