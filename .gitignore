@@ -49,6 +49,7 @@ dist/
 .pytest_cache/
 .coverage
 .cache/
+coverage.xml
 
 # VS Code or other IDE settings
 .vscode/
