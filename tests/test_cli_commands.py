@@ -13,6 +13,7 @@ class TestHelpCommands:
 
     @pytest.mark.parametrize("command", [
         ["optimize", "run", "--help"],
+        ["optimize", "batch", "--help"],
         ["md", "run", "--help"],
         ["neb", "run", "--help"],
         ["autoneb", "run", "--help"],

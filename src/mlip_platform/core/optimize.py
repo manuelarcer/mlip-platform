@@ -48,6 +48,7 @@ def run_optimization(
     model_name: str = "mlip",
     verbose: bool = True,
     relax_cell: bool = False,
+    plot: bool = True,
 ) -> bool:
     """Run geometry optimization on an ASE Atoms object.
 
@@ -78,6 +79,12 @@ def run_optimization(
         If True, also relax the simulation cell (positions + cell, like VASP
         ISIF=3). Uses ``ase.filters.FrechetCellFilter`` when available,
         otherwise ``ase.constraints.ExpCellFilter``.
+    plot : bool
+        If True (default), write the ``*_convergence.png`` figure. Set False to
+        skip it -- the matplotlib figure/save is per-structure IO that dominates
+        short relaxations (e.g. frozen-surface site scans), so disabling it
+        materially speeds up large batches. The ``*_convergence.csv`` is always
+        written, so the data is retained either way.
 
     Returns
     -------
@@ -154,26 +161,28 @@ def run_optimization(
     df = pd.DataFrame(log_data)
     df.to_csv(csv_file, index=False)
 
-    # Plot convergence
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
+    # Plot convergence (skippable: the figure + savefig is per-structure IO that
+    # dominates short relaxations; the CSV above retains the same data).
+    if plot:
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8))
 
-    ax1.plot(df["step"], df["energy(eV)"], marker="o", markersize=4, linewidth=1.5)
-    ax1.set_xlabel("Optimization Step")
-    ax1.set_ylabel("Energy (eV)")
-    ax1.set_title(f"Energy Convergence ({optimizer.upper()})")
-    ax1.grid(True, alpha=0.3)
+        ax1.plot(df["step"], df["energy(eV)"], marker="o", markersize=4, linewidth=1.5)
+        ax1.set_xlabel("Optimization Step")
+        ax1.set_ylabel("Energy (eV)")
+        ax1.set_title(f"Energy Convergence ({optimizer.upper()})")
+        ax1.grid(True, alpha=0.3)
 
-    ax2.plot(df["step"], df["fmax(eV/A)"], marker="o", markersize=4, linewidth=1.5, color="orange")
-    ax2.axhline(y=fmax, color="r", linestyle="--", label=f"fmax target = {fmax}")
-    ax2.set_xlabel("Optimization Step")
-    ax2.set_ylabel("Max Force (eV/Ang)")
-    ax2.set_title("Force Convergence")
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
-    ax2.set_yscale("log")
+        ax2.plot(df["step"], df["fmax(eV/A)"], marker="o", markersize=4, linewidth=1.5, color="orange")
+        ax2.axhline(y=fmax, color="r", linestyle="--", label=f"fmax target = {fmax}")
+        ax2.set_xlabel("Optimization Step")
+        ax2.set_ylabel("Max Force (eV/Ang)")
+        ax2.set_title("Force Convergence")
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+        ax2.set_yscale("log")
 
-    plt.tight_layout()
-    plt.savefig(convergence_plot, dpi=150)
-    plt.close()
+        plt.tight_layout()
+        plt.savefig(convergence_plot, dpi=150)
+        plt.close()
 
     return converged

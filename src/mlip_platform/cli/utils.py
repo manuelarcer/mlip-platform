@@ -364,14 +364,17 @@ def _resolve_device(device: str) -> str:
     return "cpu"
 
 
-def setup_calculator(atoms, mlip: str, uma_task: str = "omat",
-                      device: str = "auto", mace_head: str = "omat_pbe"):
-    """Attach calculator to atoms object based on MLIP choice.
+def build_calculator(mlip: str, uma_task: str = "omat",
+                     device: str = "auto", mace_head: str = "omat_pbe"):
+    """Build and return an ASE calculator for the given MLIP choice.
+
+    This is the expensive step: it loads the model weights into memory (and,
+    for GPU runs, onto the device). Building it once and reusing the returned
+    object across many structures avoids paying the load cost repeatedly --
+    see :func:`setup_calculator`, which builds and attaches in one call.
 
     Parameters
     ----------
-    atoms : ase.Atoms
-        Atoms object to attach calculator to.
     mlip : str
         MLIP model name.
     uma_task : str, optional
@@ -387,32 +390,65 @@ def setup_calculator(atoms, mlip: str, uma_task: str = "omat",
 
     Returns
     -------
-    ase.Atoms
-        Atoms object with calculator attached.
+    ase.calculators.calculator.Calculator
+        The ready-to-use ASE calculator. Assign it to ``atoms.calc``.
     """
     device = _resolve_device(device)
 
     if mlip == "mace":
         mace_mp = _load_mace_mp()
-        atoms.calc = mace_mp(model="medium", device=device)
+        return mace_mp(model="medium", device=device)
 
     elif mlip.startswith("mace-mh-"):
         from mace.calculators import MACECalculator
         ckpt = _ensure_mace_foundation_checkpoint(mlip)
-        atoms.calc = MACECalculator(model_paths=ckpt, device=device,
-                                     head=mace_head)
+        return MACECalculator(model_paths=ckpt, device=device, head=mace_head)
 
     elif mlip == "7net-mf-ompa":
         SevenNetCalculator = _load_sevenn_calculator()
-        atoms.calc = SevenNetCalculator("7net-mf-ompa", modal="mpa", device=device)
+        return SevenNetCalculator("7net-mf-ompa", modal="mpa", device=device)
 
     elif mlip.startswith("uma-"):
         pretrained_mlip, FAIRChemCalculator = _load_fairchem()
         predictor = pretrained_mlip.get_predict_unit(mlip, device=device)
-        atoms.calc = FAIRChemCalculator(predictor, task_name=uma_task)
+        return FAIRChemCalculator(predictor, task_name=uma_task)
 
     elif mlip == "chgnet":
         CHGNetCalculator = _load_chgnet_calculator()
-        atoms.calc = CHGNetCalculator(use_device=device)
+        return CHGNetCalculator(use_device=device)
 
+    return None
+
+
+def setup_calculator(atoms, mlip: str, uma_task: str = "omat",
+                     device: str = "auto", mace_head: str = "omat_pbe"):
+    """Attach a freshly built calculator to ``atoms`` based on MLIP choice.
+
+    Convenience wrapper that builds the calculator (see
+    :func:`build_calculator`) and attaches it. For a series of structures
+    sharing one model, call :func:`build_calculator` once and assign the
+    returned object to each ``atoms.calc`` instead, to load the model only
+    once.
+
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Atoms object to attach calculator to.
+    mlip : str
+        MLIP model name.
+    uma_task : str, optional
+        Task name for UMA models (default: ``"omat"``).
+    device : str, optional
+        Compute device: ``"auto"`` (default; cuda if available else cpu),
+        ``"cuda"``, or ``"cpu"``.
+    mace_head : str, optional
+        Head name for multi-head MACE foundation models (mace-mh-*).
+
+    Returns
+    -------
+    ase.Atoms
+        Atoms object with calculator attached.
+    """
+    atoms.calc = build_calculator(mlip, uma_task, device=device,
+                                  mace_head=mace_head)
     return atoms
