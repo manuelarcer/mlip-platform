@@ -117,3 +117,116 @@ class TestBatchCommand:
         assert "skipping" in result.output
         summary = (tmp_path / "batch_summary.csv").read_text()
         assert "skipped" in summary
+
+
+class TestBatchGuards:
+    """Input-validation guard clauses that abort the batch before any model load."""
+
+    def test_parent_not_a_directory_exits(self, tmp_path):
+        not_a_dir = tmp_path / "a_file.txt"
+        not_a_dir.write_text("not a directory")
+        result = runner.invoke(app, [
+            "batch", "--parent", str(not_a_dir), "--mlip", "mace",
+        ])
+        assert result.exit_code == 1
+        assert "Not a directory" in result.output
+
+    def test_unknown_optimizer_exits(self, tmp_path):
+        # tmp_path is a real directory, so the optimizer check is reached next.
+        result = runner.invoke(app, [
+            "batch", "--parent", str(tmp_path), "--mlip", "mace",
+            "--optimizer", "nonexistent",
+        ])
+        assert result.exit_code == 1
+        assert "Unknown optimizer" in result.output
+
+    def test_no_subdirectories_exits(self, tmp_path, monkeypatch):
+        # Valid dir + valid optimizer + resolvable MLIP, but no subdirs to relax.
+        monkeypatch.setattr(opt_cmd, "validate_mlip", lambda *a, **k: None)
+        result = runner.invoke(app, [
+            "batch", "--parent", str(tmp_path), "--mlip", "mace",
+        ])
+        assert result.exit_code == 1
+        assert "No subdirectories" in result.output
+
+
+class TestBatchMlipSelection:
+    """MLIP-resolution branches (auto-detect, UMA/MACE-head echo + param lines)."""
+
+    def _patch_model(self, monkeypatch):
+        monkeypatch.setattr(opt_cmd, "build_calculator", lambda *a, **k: EMT())
+        monkeypatch.setattr(opt_cmd, "validate_mlip", lambda *a, **k: None)
+
+    def test_auto_detect_branch(self, tmp_path, monkeypatch):
+        # --mlip auto takes the detect_mlip() path (not the explicit-validate path).
+        self._patch_model(monkeypatch)
+        monkeypatch.setattr(opt_cmd, "detect_mlip", lambda: "mace")
+        _make_tree(tmp_path, ["s1"])
+
+        result = runner.invoke(app, [
+            "batch", "--parent", str(tmp_path), "--mlip", "auto",
+            "--fmax", "0.1", "--max-steps", "50",
+        ])
+        assert result.exit_code == 0, result.output
+        assert "Auto-detected MLIP: mace" in result.output
+
+    def test_uma_task_recorded(self, tmp_path, monkeypatch):
+        # A 'uma-' tag exercises the UMA-specific echo and param-file lines.
+        self._patch_model(monkeypatch)
+        _make_tree(tmp_path, ["s1"])
+
+        result = runner.invoke(app, [
+            "batch", "--parent", str(tmp_path), "--mlip", "uma-s-1p2",
+            "--uma-task", "omat", "--fmax", "0.1", "--max-steps", "50",
+        ])
+        assert result.exit_code == 0, result.output
+        assert "UMA task: omat" in result.output
+        params = (tmp_path / "s1" / "opt_params.txt").read_text()
+        assert "UMA task:" in params
+
+    def test_mace_head_recorded(self, tmp_path, monkeypatch):
+        # A 'mace-mh-' tag exercises the MACE-head echo and param-file lines.
+        self._patch_model(monkeypatch)
+        _make_tree(tmp_path, ["s1"])
+
+        result = runner.invoke(app, [
+            "batch", "--parent", str(tmp_path), "--mlip", "mace-mh-1",
+            "--mace-head", "omat_pbe", "--fmax", "0.1", "--max-steps", "50",
+        ])
+        assert result.exit_code == 0, result.output
+        assert "MACE head: omat_pbe" in result.output
+        params = (tmp_path / "s1" / "opt_params.txt").read_text()
+        assert "MACE head:" in params
+
+
+class TestBatchErrorHandling:
+    """The generic continue-on-failure path (an optimization that raises)."""
+
+    def test_optimization_error_recorded_and_batch_continues(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(opt_cmd, "build_calculator", lambda *a, **k: EMT())
+        monkeypatch.setattr(opt_cmd, "validate_mlip", lambda *a, **k: None)
+
+        # First subdir raises inside run_optimization; second succeeds. The batch
+        # must record 'error' for the first and still process the second.
+        calls = {"n": 0}
+        real_run = opt_cmd.run_optimization
+
+        def flaky_run(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("boom")
+            return real_run(*args, **kwargs)
+
+        monkeypatch.setattr(opt_cmd, "run_optimization", flaky_run)
+        _make_tree(tmp_path, ["s1", "s2"])
+
+        result = runner.invoke(app, [
+            "batch", "--parent", str(tmp_path), "--mlip", "mace",
+            "--fmax", "0.1", "--max-steps", "50",
+        ])
+        assert result.exit_code == 0, result.output
+        summary = (tmp_path / "batch_summary.csv").read_text()
+        assert "error" in summary
+        assert "boom" in summary
+        # The batch continued past the failure and relaxed the second structure.
+        assert (tmp_path / "s2" / "CONTCAR").exists()
