@@ -78,6 +78,15 @@ pytestmark = pytest.mark.uma   # entire module gated on fairchem-core
 5. Add an entry to `CHANGELOG.md` under `[Unreleased]` describing the user-visible change. Follow the existing structure (Added / Changed / Fixed / Removed / Deprecated).
 6. Run the unit suite locally before pushing: `pytest -m "not uma and not mace and not sevenn"`.
 
+## Continuous integration
+
+Every push and pull request runs `.github/workflows/tests.yml`:
+
+- The unit suite runs under coverage (`pytest --cov=mlip_platform --cov-report=xml`).
+- A **diff-coverage gate** requires **>= 90% coverage on the lines your PR changes** (`diff-cover coverage.xml --compare-branch=origin/main --fail-under=90`, excluding `setup.py` and `scripts/*`). A PR that adds untested code will fail here — add tests for new lines before pushing.
+
+A separate scheduled workflow (`.github/workflows/weekly.yml`) runs broader quality checks weekly; you do not need to trigger it for a PR.
+
 ## Versioning and releases
 
 Versioning follows [Semantic Versioning](https://semver.org/). The version lives in `setup.py`. To cut a release:

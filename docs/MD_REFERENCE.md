@@ -119,13 +119,13 @@ Every `md run` invocation writes the following to the directory containing the i
 |------|----------|
 | `md.traj` | Full ASE trajectory (every `--traj-interval` steps) |
 | `md_energy.csv` | Step, time (fs), temperature (K), total / potential / kinetic energy (eV); plus `pressure(GPa)` and `volume(A^3)` columns for NPT |
-| `md_energy.png` | Total / potential / kinetic energy vs time |
-| `md_temperature.png` | Temperature vs time, with target line for NVT/NPT |
-| `md_pressure.png` | NPT only: pressure vs time, with target line |
-| `md_volume.png` | NPT only: volume vs time |
 | `md_params.txt` | Echo of every parameter the run was launched with |
+| `md_energy.png` | Total / potential / kinetic energy vs time — **only with `--plot`** |
+| `md_temperature.png` | Temperature vs time, with target line for NVT/NPT — **only with `--plot`** |
+| `md_pressure.png` | NPT only: pressure vs time, with target line — **only with `--plot`** |
+| `md_volume.png` | NPT only: volume vs time — **only with `--plot`** |
 
-Output goes to `Path(--structure).parent`, not the current working directory.
+Plotting is opt-in: `md.traj`, `md_energy.csv`, and `md_params.txt` are always written; the PNGs require `--plot`. Output goes to `Path(--structure).parent`, not the current working directory.
 
 ---
 
@@ -177,7 +177,7 @@ md run --structure structure.vasp \
    --ensemble nve --steps 10000 --timestep 1.0
 ```
 
-Inspect `md_energy.png`: the total-energy curve should be flat. Drift is a sign that the timestep is too large or the calculator is stochastic.
+Inspect the total energy over time (plot `md_energy.csv`, or run with `--plot` to get `md_energy.png`): the total-energy curve should be flat. Drift is a sign that the timestep is too large or the calculator is stochastic.
 
 ---
 

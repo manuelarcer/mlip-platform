@@ -112,3 +112,29 @@ class TestExportPoscars:
         for i in range(5):
             poscar = tmp_workdir / f"{i:02d}" / "POSCAR"
             assert poscar.exists(), f"POSCAR missing for image {i}"
+
+
+class TestRunNebPlotting:
+    """run_neb always writes neb_convergence.csv; the PNG is opt-in (plot=True)."""
+
+    def _emt_neb(self, tmp_workdir, monkeypatch):
+        initial, final = _make_neb_pair()
+        neb = CustomNEB(
+            initial=initial, final=final, num_images=3,
+            mlip="test", output_dir=tmp_workdir,
+        )
+        # run_neb builds a calculator per image via self.setup_calculator();
+        # swap in EMT so the run works without a real MLIP installed.
+        monkeypatch.setattr(neb, "setup_calculator", lambda: EMT())
+        return neb
+
+    def test_no_png_by_default(self, tmp_workdir, monkeypatch):
+        neb = self._emt_neb(tmp_workdir, monkeypatch)
+        neb.run_neb(max_steps=2)
+        assert (tmp_workdir / "neb_convergence.csv").exists()
+        assert not (tmp_workdir / "neb_convergence.png").exists()
+
+    def test_png_when_plot_true(self, tmp_workdir, monkeypatch):
+        neb = self._emt_neb(tmp_workdir, monkeypatch)
+        neb.run_neb(max_steps=2, plot=True)
+        assert (tmp_workdir / "neb_convergence.png").exists()

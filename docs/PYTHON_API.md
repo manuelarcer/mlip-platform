@@ -6,7 +6,8 @@ The CLI commands wrap a small set of pure-Python functions and one class. This p
 
 | Module | Public symbol | Purpose |
 |--------|---------------|---------|
-| `mlip_platform.cli.utils` | `setup_calculator(atoms, mlip, uma_task="omat", device="auto", mace_head="omat_pbe")` | Attach the right MLIP calculator to an `Atoms` object |
+| `mlip_platform.cli.utils` | `build_calculator(mlip, uma_task="omat", device="auto", mace_head="omat_pbe")` | Build and **return** an MLIP calculator (loads model weights once) without attaching it |
+| `mlip_platform.cli.utils` | `setup_calculator(atoms, mlip, uma_task="omat", device="auto", mace_head="omat_pbe")` | Attach the right MLIP calculator to an `Atoms` object (thin wrapper over `build_calculator`) |
 | `mlip_platform.cli.utils` | `detect_mlip()` / `validate_mlip(name)` / `resolve_mlip(name)` | Auto-detect / validate MLIP availability |
 | `mlip_platform.core.optimize` | `run_optimization(atoms, ...)` | Geometry optimization with progress logging and plots |
 | `mlip_platform.core.optimize` | `OPTIMIZER_MAP` | dict of supported ASE optimizers |
@@ -42,12 +43,23 @@ setup_calculator(atoms, mlip="uma-s-1p2", uma_task="omat")  # mutates atoms.calc
 
 `device` selects the compute device (`"auto"` → cuda if available else cpu, or force `"cuda"` / `"cpu"`). `mace_head` is ignored for non-MH models; `uma_task` is ignored for non-UMA models.
 
+To relax or evaluate **many** structures, load the model once with `build_calculator` and reuse the returned calculator, instead of calling `setup_calculator` (which rebuilds it) per structure. This is what `optimize batch` does internally:
+
+```python
+from mlip_platform.cli.utils import build_calculator
+
+calc = build_calculator(mlip="uma-s-1p2", uma_task="omat")  # expensive: loads weights once
+for atoms in many_structures:
+    atoms.calc = calc                                        # cheap: reuse across all
+    ...
+```
+
 Auto-detection is also exposed:
 
 ```python
 from mlip_platform.cli.utils import detect_mlip, resolve_mlip
 
-detect_mlip()              # returns first installed: "uma-s-1p2" / "7net-mf-ompa" / "mace" / "chgnet"
+detect_mlip()              # returns first installed, in order: "uma-s-1p2" / "mace" / "7net-mf-ompa" / "chgnet"
 resolve_mlip("auto")       # detect + echo to stdout — convenience wrapper
 resolve_mlip("uma-s-1p2")  # validate availability + echo
 ```
@@ -72,6 +84,7 @@ converged = run_optimization(
     relax_cell=False,   # True → also relax the cell (VASP ISIF=3-equivalent)
     output_dir="./relaxed",
     model_name="uma-s-1p2",
+    plot=False,         # default: no PNG. Set True to write *_convergence.png (CSV always written)
 )
 ```
 

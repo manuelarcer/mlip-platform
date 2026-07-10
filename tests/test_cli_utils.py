@@ -30,15 +30,23 @@ class TestDetectMlip:
         assert detect_mlip() == "uma-s-1p2"
 
     @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", True)
+    def test_falls_back_to_mace(self):
+        # Without UMA, MACE is the preferred fallback (it is not gated).
+        assert detect_mlip() == "mace"
+
+    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", True)
+    @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", True)
+    def test_mace_preferred_over_sevenn(self):
+        # When both MACE and SevenNet are installed, MACE wins (readily usable).
+        assert detect_mlip() == "mace"
+
+    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", False)
     @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", True)
     def test_falls_back_to_sevenn(self):
         assert detect_mlip() == "7net-mf-ompa"
-
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", True)
-    def test_falls_back_to_mace(self):
-        assert detect_mlip() == "mace"
 
     @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
     @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", False)

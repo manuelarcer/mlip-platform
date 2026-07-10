@@ -37,6 +37,12 @@ DEVICE_HELP = (
     "CUDA_VISIBLE_DEVICES to pick which GPU."
 )
 
+PLOT_HELP = (
+    "Write PNG plots of the results. Off by default (plotting is opt-in): the "
+    "figure/save is IO that dominates short runs, so pass --plot only when you "
+    "want the figures. The CSV data is always written and can be plotted later."
+)
+
 
 # ---------------------------------------------------------------------------
 # Package availability checks (lightweight, no heavy imports)
@@ -167,7 +173,13 @@ def _no_mlip_message() -> str:
 
 
 def detect_mlip() -> str:
-    """Detect available MLIP model in order of preference: UMA > SevenNet > MACE > CHGNet.
+    """Detect available MLIP model in order of preference: UMA > MACE > SevenNet > CHGNet.
+
+    UMA is preferred when installed (the most accurate foundation model
+    available here), but it is gated on Hugging Face and unusable without first
+    requesting access. MACE is therefore placed ahead of SevenNet/CHGNet as the
+    readily-usable fallback: a fresh environment with ``pip install mace-torch``
+    lands on a working model without any access request.
 
     Returns
     -------
@@ -181,10 +193,10 @@ def detect_mlip() -> str:
     """
     if FAIRCHEM_AVAILABLE:
         return "uma-s-1p2"
-    elif SEVENN_AVAILABLE:
-        return "7net-mf-ompa"
     elif MACE_AVAILABLE:
         return "mace"
+    elif SEVENN_AVAILABLE:
+        return "7net-mf-ompa"
     elif CHGNET_AVAILABLE:
         return "chgnet"
     else:

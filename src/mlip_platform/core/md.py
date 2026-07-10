@@ -182,6 +182,7 @@ def run_md(
     model_name: str = "mlip",
     resume: bool = False,
     csv_flush_every: int = 100,
+    plot: bool = False,
 ) -> None:
     """Run molecular dynamics simulation.
 
@@ -207,6 +208,10 @@ def run_md(
     csv_flush_every : int
         Append buffered rows to md_energy.csv every N log_properties calls so
         the file grows incrementally instead of appearing only at end of run.
+    plot : bool
+        If True, write the md_energy/md_temperature (and NPT md_pressure/
+        md_volume) PNGs. Defaults to False -- plotting is opt-in; md_energy.csv
+        is always written and can be plotted later.
 
     (Other parameters as in :func:`setup_dynamics`.)
     """
@@ -309,6 +314,11 @@ def run_md(
     _flush_csv()  # final tail of buffered rows
 
     df = pd.DataFrame(log_data)
+
+    # Plotting is opt-in. md_energy.csv is already written above, so returning
+    # here just skips the PNGs (which are IO that can dominate short runs).
+    if not plot:
+        return
 
     # Plot energy: potential/total on the left axis, kinetic on a twin
     # right axis -- kinetic is orders of magnitude smaller than |E_pot|,
