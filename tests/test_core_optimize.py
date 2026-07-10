@@ -29,9 +29,19 @@ class TestOptimizationConverges:
         assert (tmp_workdir / "opt.traj").exists()
         assert (tmp_workdir / "opt.log").exists()
         assert (tmp_workdir / "opt_convergence.csv").exists()
-        assert (tmp_workdir / "opt_convergence.png").exists()
         assert (tmp_workdir / "opt_final.vasp").exists()
         assert (tmp_workdir / "CONTCAR").exists()
+        # Plotting is opt-in: no PNG unless plot=True.
+        assert not (tmp_workdir / "opt_convergence.png").exists()
+
+    def test_plot_opt_in_writes_png(self, tmp_workdir):
+        atoms = bulk("Cu", "fcc", a=3.7)
+        atoms.calc = EMT()
+        run_optimization(
+            atoms, optimizer="bfgs", fmax=0.1, max_steps=50,
+            output_dir=tmp_workdir, verbose=False, plot=True,
+        )
+        assert (tmp_workdir / "opt_convergence.png").exists()
 
     def test_convergence_csv_has_data(self, tmp_workdir):
         import pandas as pd

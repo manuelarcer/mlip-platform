@@ -6,6 +6,7 @@ from mlip_platform.cli.utils import (
     DEVICE_HELP,
     MACE_HEAD_HELP,
     MLIP_HELP,
+    PLOT_HELP,
     UMA_TASK_HELP,
     detect_mlip,
     setup_calculator,
@@ -78,6 +79,7 @@ def run(
             "shrink disk."
         ),
     ),
+    plot: bool = typer.Option(False, "--plot/--no-plot", help=PLOT_HELP),
 ):
     """
     Run molecular dynamics simulation using a supported MLIP model.
@@ -215,14 +217,17 @@ def run(
         model_name=mlip,
         resume=resume,
         csv_flush_every=csv_flush_every,
+        plot=plot,
     )
 
     # List output files
     typer.echo("\n✅ MD complete. Output written to:")
-    output_files = ["md.traj", "md_energy.csv", "md_energy.png", "md_temperature.png"]
+    output_files = ["md.traj", "md_energy.csv"]
 
-    if ensemble == 'npt':
-        output_files.extend(["md_pressure.png", "md_volume.png"])
+    if plot:
+        output_files.extend(["md_energy.png", "md_temperature.png"])
+        if ensemble == 'npt':
+            output_files.extend(["md_pressure.png", "md_volume.png"])
 
     output_files.append("md_params.txt")
 

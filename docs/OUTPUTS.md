@@ -25,7 +25,7 @@ This is not always the same directory the user is sitting in. `optimize` and `md
 | `opt.traj` | ASE trajectory (binary) | Every optimizer step |
 | `opt.log` | text | ASE optimizer log (step, fmax, energy) |
 | `opt_convergence.csv` | CSV | columns: `step`, `energy(eV)`, `fmax(eV/A)` |
-| `opt_convergence.png` | PNG | Energy and fmax vs step |
+| `opt_convergence.png` | PNG | Energy and fmax vs step — **only with `--plot`** (plotting is opt-in; the CSV is always written) |
 | `opt_final.vasp` | VASP POSCAR (vasp5, direct) | Final relaxed structure |
 | `CONTCAR` | VASP POSCAR (vasp5, direct) | Copy of the final relaxed structure, named so a follow-up DFT run (e.g. managed by asetools) can restart from this directory |
 | `opt_params.txt` | plain text, key/value | Echo of run parameters (MLIP, optimizer, fmax, max_steps, etc.) |
@@ -55,11 +55,16 @@ Always written:
 |------|--------|----------|
 | `md.traj` | ASE trajectory (binary) | Every `interval` steps |
 | `md_energy.csv` | CSV | columns: `step`, `time(fs)`, `temperature(K)`, `total_energy(eV)`, `potential_energy(eV)`, `kinetic_energy(eV)` |
-| `md_energy.png` | PNG | Total / potential / kinetic energy vs time |
-| `md_temperature.png` | PNG | Temperature vs time, with target line for NVT/NPT |
 | `md_params.txt` | plain text | Echo of run parameters |
 
-NPT-only extras:
+Only with `--plot` (plotting is opt-in; the CSV above is always written):
+
+| File | Format | Contents |
+|------|--------|----------|
+| `md_energy.png` | PNG | Total / potential / kinetic energy vs time |
+| `md_temperature.png` | PNG | Temperature vs time, with target line for NVT/NPT |
+
+NPT-only extras (also require `--plot`):
 
 | File | Format | Contents |
 |------|--------|----------|
@@ -95,9 +100,9 @@ NEB run:
 | `A2B_full.traj` | ASE trajectory | All NEB iteration steps; required for `--restart` |
 | `neb.log` (or `--log` value) | text | Per-iteration log: step, fmax, current barrier |
 | `neb_convergence.csv` | CSV | columns: `step`, `fmax(eV/A)`, `barrier(eV)` |
-| `neb_convergence.png` | PNG | Two-panel: fmax vs step, barrier vs step |
+| `neb_convergence.png` | PNG | Two-panel: fmax vs step, barrier vs step — **only with `--plot`** |
 | `neb_data.csv` | CSV | One row per image: index, energy, relative energy, force info |
-| `neb_energy.png` | PNG | Smoothed energy profile across the band, barrier annotated |
+| `neb_energy.png` | PNG | Smoothed energy profile across the band, barrier annotated — **only with `--plot`** |
 | `neb_parameters.txt` | plain text | Echo of run parameters; required for `--restart` |
 | `00/POSCAR`, `01/POSCAR`, ... | VASP POSCAR | One directory per image, including endpoints |
 

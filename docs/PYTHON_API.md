@@ -59,7 +59,7 @@ Auto-detection is also exposed:
 ```python
 from mlip_platform.cli.utils import detect_mlip, resolve_mlip
 
-detect_mlip()              # returns first installed: "uma-s-1p2" / "7net-mf-ompa" / "mace" / "chgnet"
+detect_mlip()              # returns first installed, in order: "uma-s-1p2" / "mace" / "7net-mf-ompa" / "chgnet"
 resolve_mlip("auto")       # detect + echo to stdout — convenience wrapper
 resolve_mlip("uma-s-1p2")  # validate availability + echo
 ```
@@ -84,7 +84,7 @@ converged = run_optimization(
     relax_cell=False,   # True → also relax the cell (VASP ISIF=3-equivalent)
     output_dir="./relaxed",
     model_name="uma-s-1p2",
-    plot=True,          # False → skip the *_convergence.png (CSV still written)
+    plot=False,         # default: no PNG. Set True to write *_convergence.png (CSV always written)
 )
 ```
 

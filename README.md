@@ -15,7 +15,7 @@ Supports **UMA** (FAIRChem), **SevenNet** (7net), and **MACE** models with autom
 ## Key Features
 
 - Unified CLI commands: `optimize run`, `md run`, `neb run`, `autoneb run`
-- Auto-detection of available MLIP models (UMA > SevenNet > MACE)
+- Auto-detection of available MLIP models (UMA > MACE > SevenNet > CHGNet)
 - UMA model support with multiple task types (OMat, OC20, OMol, ODAC)
 - MACE multi-head foundation models (`mace-mh-*`) with selectable heads (`omat_pbe`, `oc20_usemppbe`, `matpes_r2scan`, …)
 - GPU/CPU selection via `--device` (`auto`/`cuda`/`cpu`) on all run commands
@@ -24,7 +24,7 @@ Supports **UMA** (FAIRChem), **SevenNet** (7net), and **MACE** models with autom
 - Configurable thermostats (Langevin, Nose-Hoover, Berendsen) and barostats (MTK NPT, Berendsen NPT)
 - NEB with IDPP interpolation, restart support, and highly-constrained mode
 - AutoNEB with dynamic image insertion
-- Automated plotting and CSV output for all simulations
+- CSV output for all simulations; PNG plots are opt-in via `--plot` (CSVs are always written)
 - Lazy imports for fast CLI startup
 - Pytest-based test suite with EMT-based unit tests and MLIP integration tests
 
@@ -48,20 +48,20 @@ pip install -e .
 3. **Install MLIP models** (choose one or more)
 
 ```bash
-# UMA models (FAIRChem) - Recommended; gated on Hugging Face
+# MACE - readily usable, no access request (good default for a fresh setup)
+pip install mace-torch
+
+# UMA models (FAIRChem) - most accurate, but gated on Hugging Face
 pip install fairchem-core
 
 # SevenNet
 pip install sevenn
 
-# MACE
-pip install mace-torch
-
 # CHGNet
 pip install chgnet
 ```
 
-> **Note**: Models can coexist in the same environment. With `--mlip auto` (the default), the CLI picks the first available in the order **UMA → SevenNet → MACE → CHGNet**, or you can pass `--mlip <name>` to force a specific one. UMA additionally requires Hugging Face access — see [UMA_USAGE_GUIDE.md](docs/UMA_USAGE_GUIDE.md#2-hugging-face-access).
+> **Note**: Models can coexist in the same environment. With `--mlip auto` (the default), the CLI picks the first available in the order **UMA → MACE → SevenNet → CHGNet**, or you can pass `--mlip <name>` to force a specific one. UMA is preferred when installed (it is the most accurate), but it is gated on Hugging Face and unusable without an access request — so MACE is placed ahead of SevenNet/CHGNet as the readily-usable fallback. A fresh environment with only `pip install mace-torch` lands on a working model with no access request. UMA's Hugging Face setup is covered in [UMA_USAGE_GUIDE.md](docs/UMA_USAGE_GUIDE.md#2-hugging-face-access).
 
 ### Windows Setup
 
@@ -82,10 +82,11 @@ The package installs the following entry points:
 
 These apply to `optimize`, `md`, `neb`, `autoneb`, and `benchmark`:
 
-- `--mlip`: Model tag. `auto` (default) picks the first installed in order **UMA → SevenNet → MACE → CHGNet**, or pass an explicit tag: any `uma-*` (e.g. `uma-s-1p2`), `mace` (MACE-MP-0), `mace-mh-1` (multi-head foundation), `7net-mf-ompa`, `chgnet`.
+- `--mlip`: Model tag. `auto` (default) picks the first installed in order **UMA → MACE → SevenNet → CHGNet** (UMA preferred when present, MACE as the readily-usable fallback), or pass an explicit tag: any `uma-*` (e.g. `uma-s-1p2`), `mace` (MACE-MP-0), `mace-mh-1` (multi-head foundation), `7net-mf-ompa`, `chgnet`.
 - `--uma-task`: Task head for UMA models — `omat` (default, bulk inorganic), `oc20` (catalysis/surfaces), `omol` (molecules), `odac`. Ignored for non-UMA models.
 - `--mace-head`: Head for multi-head MACE models (`mace-mh-*`) — `omat_pbe` (default), `oc20_usemppbe`, `matpes_r2scan`, `mp_pbe_refit_add`, `omol`, `spice_wB97M`. Ignored for plain `mace`.
 - `--device`: `auto` (default; cuda if available, else cpu), `cuda`, or `cpu`. On multi-GPU nodes set `CUDA_VISIBLE_DEVICES` to choose the GPU. (`neb` is the exception: it defaults to `cpu`, so pass `--device cuda` explicitly for GPU NEB runs.)
+- `--plot / --no-plot`: write PNG figures of the results. **Off by default** (plotting is opt-in) — the CSV data is always written, so pass `--plot` only when you want the figures. Applies to `optimize`, `md`, and `neb`.
 
 **Example (multi-head MACE on a catalysis surface, forced to GPU):**
 ```bash
@@ -103,7 +104,7 @@ optimize run --structure path/to/structure.vasp
 - `--fmax`: Force convergence threshold in eV/Å (default: `0.05`)
 - `--max-steps`: Maximum optimization steps (default: `200`)
 - `--relax-cell`: Also relax the simulation cell (VASP ISIF=3-equivalent), wrapping the atoms in ASE's `FrechetCellFilter`. Off by default (positions only).
-- `--no-plot`: Skip the per-structure `*_convergence.png` figure (the `*_convergence.csv` is still written). The plot is per-structure IO that dominates short relaxations, so disabling it materially speeds up large batches.
+- `--plot`: also write the `*_convergence.png` figure (off by default; the `*_convergence.csv` is always written). The plot is per-structure IO that dominates short relaxations, so it is opt-in.
 
 **Example (positions only):**
 ```bash
@@ -115,7 +116,7 @@ optimize run --structure POSCAR --mlip uma-s-1p2 --optimizer fire --fmax 0.05
 optimize run --structure POSCAR --relax-cell --optimizer fire --fmax 0.02
 ```
 
-**Outputs:** `opt.traj`, `opt.log`, `opt_convergence.csv`, `opt_convergence.png`, `opt_final.vasp`, `CONTCAR`, `opt_params.txt`
+**Outputs:** `opt.traj`, `opt.log`, `opt_convergence.csv`, `opt_final.vasp`, `CONTCAR`, `opt_params.txt` (plus `opt_convergence.png` with `--plot`)
 
 (`CONTCAR` is a copy of the final structure, named so a follow-up DFT run managed by asetools can restart from the directory.)
 
@@ -129,7 +130,7 @@ optimize batch --parent runs/ --mlip uma-s-1p2 --fmax 0.05
 
 - `--input-name`: glob for the input inside each subdir (default `*.vasp`, i.e. exactly one `.vasp` file per subdir; the platform's own `*_final.vasp` outputs are ignored). Use e.g. `POSCAR` for a fixed name.
 - `--skip-existing`: skip subdirs that already have a `CONTCAR` (resume a partial batch).
-- `--no-plot`: skip the per-structure convergence PNG for every relaxation in the batch (measured ~3x speedup on frozen-surface site scans, where the plot cost more per job than the model load).
+- `--plot`: also write the per-structure convergence PNG for every relaxation (off by default — skipping it gives a measured ~3x speedup on frozen-surface site scans, where the plot cost more per job than the model load).
 - A structure that errors or fails to converge is logged and the batch continues; results are summarized in `batch_summary.csv` written into `--parent`.
 
 ---
@@ -151,6 +152,7 @@ md run --structure path/to/structure.vasp
 - `--traj-interval`: Write a frame to `md.traj` every N steps (default: 100)
 - `--resume`: Continue an existing run — loads the last frame of `md.traj`, preserves momenta, and treats `--steps` as *additional* steps
 - `--mlip`: Model choice (default: `auto`)
+- `--plot`: also write the `md_energy` / `md_temperature` (and NPT `md_pressure` / `md_volume`) PNGs (off by default; `md_energy.csv` is always written)
 
 For the full MD parameter list, defaults, recommended values for solids, and worked examples, see [MD_REFERENCE.md](docs/MD_REFERENCE.md).
 
@@ -169,7 +171,7 @@ md run --structure POSCAR --ensemble npt --temperature 300 --pressure 0.0 --step
 md run --structure POSCAR --resume --steps 5000
 ```
 
-**Outputs:** `md.traj`, `md_energy.csv`, `md_energy.png`, `md_temperature.png`, `md_pressure.png` (NPT), `md_volume.png` (NPT), `md_params.txt`
+**Outputs:** `md.traj`, `md_energy.csv`, `md_params.txt` (with `--plot`, also `md_energy.png`, `md_temperature.png`, and for NPT `md_pressure.png` / `md_volume.png`)
 
 ---
 
@@ -189,6 +191,7 @@ neb run --initial path/to/initial.vasp --final path/to/final.vasp
 - `--optimize-endpoints / --no-optimize-endpoints`: Pre-optimize endpoints (default: enabled)
 - `--device`: Compute device for the MLIP calculator — `cpu` (default) or `cuda`. Unlike `optimize`/`md` (which default to `auto`), NEB runs on CPU unless you pass `--device cuda`.
 - `--mace-head`: Head for multi-head MACE models (`mace-mh-*`), same values as the other commands.
+- `--plot`: also write `neb_convergence.png` and `neb_energy.png` (off by default; `neb_convergence.csv` and `neb_data.csv` are always written — the CSV is usually enough to inspect the barrier).
 
 The band uses ASE's `improvedtangent` NEB tangent method (not the older default `aseneb`).
 
@@ -197,7 +200,7 @@ The band uses ASE's `improvedtangent` NEB tangent method (not the older default 
 neb run --initial POSCAR_A --final POSCAR_B --num-images 7 --fmax 0.05 --mlip uma-s-1p2
 ```
 
-**Outputs:** `A2B.traj`, `A2B_full.traj`, `neb.log`, `neb_convergence.csv`, `neb_convergence.png`, `neb_energy.png`, `neb_data.csv`, `neb_parameters.txt`, POSCAR files (`00/`, `01/`, ...)
+**Outputs:** `A2B.traj`, `A2B_full.traj`, `neb.log`, `neb_convergence.csv`, `neb_data.csv`, `neb_parameters.txt`, POSCAR files (`00/`, `01/`, ...) (with `--plot`, also `neb_convergence.png` and `neb_energy.png`)
 
 #### NEB Restart
 

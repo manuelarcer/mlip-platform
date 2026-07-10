@@ -578,6 +578,7 @@ class CustomNEB:
         full_traj: str = "A2B_full.traj",
         climb: bool = False,
         max_steps: int = 600,
+        plot: bool = False,
     ) -> list:
         """Run NEB optimization.
 
@@ -593,6 +594,9 @@ class CustomNEB:
             Enable climbing image NEB.
         max_steps : int
             Maximum number of optimization steps.
+        plot : bool
+            If True, write neb_convergence.png. Defaults to False -- plotting is
+            opt-in; neb_convergence.csv is always written.
 
         Returns
         -------
@@ -641,7 +645,8 @@ class CustomNEB:
         csv_path = self.output_dir / "neb_convergence.csv"
         df_conv = pd.DataFrame(log_data)
         df_conv.to_csv(csv_path, index=False)
-        self._plot_convergence(df_conv)
+        if plot:
+            self._plot_convergence(df_conv)
 
         # Ensure final energies are computed
         for image in self.images:

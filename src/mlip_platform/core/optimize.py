@@ -48,7 +48,7 @@ def run_optimization(
     model_name: str = "mlip",
     verbose: bool = True,
     relax_cell: bool = False,
-    plot: bool = True,
+    plot: bool = False,
 ) -> bool:
     """Run geometry optimization on an ASE Atoms object.
 
@@ -80,11 +80,11 @@ def run_optimization(
         ISIF=3). Uses ``ase.filters.FrechetCellFilter`` when available,
         otherwise ``ase.constraints.ExpCellFilter``.
     plot : bool
-        If True (default), write the ``*_convergence.png`` figure. Set False to
-        skip it -- the matplotlib figure/save is per-structure IO that dominates
-        short relaxations (e.g. frozen-surface site scans), so disabling it
-        materially speeds up large batches. The ``*_convergence.csv`` is always
-        written, so the data is retained either way.
+        If True, write the ``*_convergence.png`` figure. Defaults to False:
+        the matplotlib figure/save is per-structure IO that dominates short
+        relaxations (e.g. frozen-surface site scans), so plotting is opt-in.
+        The ``*_convergence.csv`` is always written, so the data is retained
+        either way and can be plotted later.
 
     Returns
     -------

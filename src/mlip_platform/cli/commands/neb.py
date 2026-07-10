@@ -10,7 +10,7 @@ from ase.optimize import FIRE, MDMin, BFGS, LBFGS
 
 from mlip_platform.core.neb import CustomNEB
 from mlip_platform.core.params_io import write_parameters_file, write_endpoint_results
-from mlip_platform.cli.utils import MACE_HEAD_HELP, MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
+from mlip_platform.cli.utils import MACE_HEAD_HELP, MLIP_HELP, PLOT_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
 
 logger = logging.getLogger(__name__)
 
@@ -341,6 +341,7 @@ def run(
     endpoint_optimizer: str = typer.Option(None, help="Optimizer for endpoints: 'bfgs', 'lbfgs', 'fire'"),
     endpoint_max_steps: int = typer.Option(None, help="Maximum steps for endpoint optimization"),
     device: str = typer.Option(None, help="Compute device for the MLIP calculator: 'cpu' (default) or 'cuda'"),
+    plot: bool = typer.Option(False, "--plot/--no-plot", help=PLOT_HELP),
 ):
     """Run Nudged Elastic Band (NEB) calculation."""
     output_dir = Path.cwd()
@@ -386,11 +387,12 @@ def run(
 
     typer.echo(f"Running NEB optimization (optimizer={neb_optimizer_name.upper()}, "
                f"climb={climb_val}, max_steps={max_steps})...")
-    neb_obj.run_neb(optimizer=neb_opt, climb=climb_val, max_steps=max_steps)
+    neb_obj.run_neb(optimizer=neb_opt, climb=climb_val, max_steps=max_steps, plot=plot)
 
     typer.echo("Processing results...")
     df = neb_obj.process_results()
-    neb_obj.plot_results(df)
+    if plot:
+        neb_obj.plot_results(df)
 
     typer.echo("Exporting POSCARs...")
     neb_obj.export_poscars()
@@ -398,9 +400,12 @@ def run(
     total = params["total_images"]
     log_name = params.get("log", "neb.log")
     typer.echo("NEB complete. Output written to:")
-    for f in [log_name, "neb_convergence.csv", "neb_convergence.png",
-              "A2B.traj", "A2B_full.traj", "idpp.traj", "idpp.log",
-              "neb_data.csv", "neb_energy.png", "neb_parameters.txt"]:
+    output_files = [log_name, "neb_convergence.csv",
+                    "A2B.traj", "A2B_full.traj", "idpp.traj", "idpp.log",
+                    "neb_data.csv", "neb_parameters.txt"]
+    if plot:
+        output_files += ["neb_convergence.png", "neb_energy.png"]
+    for f in output_files:
         typer.echo(f" - {output_dir / f}")
     for i in range(total):
         typer.echo(f" - {output_dir / f'{i:02d}' / 'POSCAR'}")

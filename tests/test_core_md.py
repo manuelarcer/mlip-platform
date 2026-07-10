@@ -59,6 +59,19 @@ class TestRunMd:
 
         assert (tmp_workdir / "md.traj").exists()
         assert (tmp_workdir / "md_energy.csv").exists()
+        # Plotting is opt-in: no PNGs unless plot=True.
+        assert not (tmp_workdir / "md_energy.png").exists()
+        assert not (tmp_workdir / "md_temperature.png").exists()
+
+    def test_short_nve_plot_opt_in(self, tmp_workdir):
+        atoms = bulk("Cu", "fcc", a=3.6) * (2, 2, 2)
+        atoms.calc = EMT()
+
+        run_md(
+            atoms, ensemble="nve", steps=5, log_interval=1, traj_interval=1,
+            output_dir=tmp_workdir, plot=True,
+        )
+
         assert (tmp_workdir / "md_energy.png").exists()
         assert (tmp_workdir / "md_temperature.png").exists()
 
