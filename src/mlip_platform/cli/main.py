@@ -4,6 +4,7 @@ from mlip_platform.cli.commands import (
     autoneb,
     autoneb_results,
     benchmark,
+    doctor,
     md,
     neb,
     optimize,
@@ -17,6 +18,7 @@ app.add_typer(neb.app, name="neb", help="Run NEB interpolation and relaxation")
 app.add_typer(autoneb.app, name="autoneb", help="Run AutoNEB with dynamic image insertion")
 app.add_typer(autoneb_results.app, name="autoneb-results", help="Extract and visualize AutoNEB results")
 app.add_typer(benchmark.app, name="benchmark", help="Run MLIP benchmark on a structure")
+app.command("doctor")(doctor.doctor)
 
 
 if __name__ == "__main__":
