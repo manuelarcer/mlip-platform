@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlip-platform"
+version = "0.3.0"
+description = "CLI platform for running MLIP-based MD, NEB, and Benchmarking"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Juan M Arce-Ramos", email = "juan.arce@ihpc.a-star.edu.sg" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+# Base dependencies only. The MLIP backends (mace-torch, fairchem-core, sevenn,
+# chgnet) and their torch stacks are intentionally NOT listed here: they have
+# mutually incompatible pins and must be installed one-per-env via the recipes
+# in docs/install/. See ADR 0001.
+dependencies = [
+    "typer[all]",
+    "ase",
+    "pandas",
+    "matplotlib",
+    "scipy",
+]
+
+[project.optional-dependencies]
+# NEB interpolation sanity-check helper. Installed from git because the PyPI
+# name "asetools" is taken by an unrelated project (an Aseprite image tool) --
+# do NOT add a bare "asetools" to the base dependencies. The import in
+# core/neb.py is guarded, so this extra is optional; install it to enable the
+# post-interpolation atomic-distance check:
+#   pip install -e ".[neb]"
+neb = [
+    "asetools @ git+https://github.com/manuelarcer/asetools.git",
+]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "diff-cover",
+    # mutmut 3.x dropped the --paths-to-mutate CLI flag and reads config from
+    # pyproject.toml ([tool.mutmut] below); pinned <3 for the flag-based CLI.
+    "mutmut>=2.4,<3.0",
+    "pip-audit",
+]
+
+[project.scripts]
+mlip = "mlip_platform.cli.main:app"
+md = "mlip_platform.cli.commands.md:app"
+neb = "mlip_platform.cli.commands.neb:app"
+autoneb = "mlip_platform.cli.commands.autoneb:app"
+autoneb-results = "mlip_platform.cli.commands.autoneb_results:app"
+benchmark = "mlip_platform.cli.commands.benchmark:app"
+optimize = "mlip_platform.cli.commands.optimize:app"
+
+[project.urls]
+Homepage = "https://github.com/manuelarcer/mlip-platform"
+Repository = "https://github.com/manuelarcer/mlip-platform"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+zip-safe = false
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mutmut]
+paths_to_mutate = "src/mlip_platform/"
