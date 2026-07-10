@@ -40,12 +40,19 @@ git clone https://github.com/manuelarcer/mlip-platform.git
 cd mlip-platform
 ```
 
-2. **Install the package** (also installs [asetools](https://github.com/manuelarcer/asetools) dependency)
+2. **Install the package**
 ```bash
 pip install -e .
 ```
 
-3. **Install MLIP models** (choose one or more)
+Optional: the NEB interpolation sanity check uses [asetools](https://github.com/manuelarcer/asetools). Enable it with:
+```bash
+pip install -e ".[neb]"
+```
+
+> **Warning**: Never `pip install asetools` directly — the package named `asetools` on PyPI is an unrelated project (Aseprite tooling). The `[neb]` extra pulls the correct one from GitHub. If the wrong one is already installed: `pip uninstall asetools`, then `pip install -e ".[neb]"`.
+
+3. **Install an MLIP model** (each in its own environment — see [install recipes](docs/install/README.md))
 
 ```bash
 # MACE - readily usable, no access request (good default for a fresh setup)
@@ -61,7 +68,14 @@ pip install sevenn
 pip install chgnet
 ```
 
-> **Note**: Models can coexist in the same environment. With `--mlip auto` (the default), the CLI picks the first available in the order **UMA → MACE → SevenNet → CHGNet**, or you can pass `--mlip <name>` to force a specific one. UMA is preferred when installed (it is the most accurate), but it is gated on Hugging Face and unusable without an access request — so MACE is placed ahead of SevenNet/CHGNet as the readily-usable fallback. A fresh environment with only `pip install mace-torch` lands on a working model with no access request. UMA's Hugging Face setup is covered in [UMA_USAGE_GUIDE.md](docs/UMA_USAGE_GUIDE.md#2-hugging-face-access).
+4. **Verify the install**
+```bash
+mlip doctor
+```
+
+Reports Python/package versions, asetools health, installed MLIP packages, what `--mlip auto` resolves to, and torch/CUDA status. Exits non-zero if no MLIP is installed, so it can be scripted.
+
+> **Note**: With `--mlip auto` (the default), the CLI picks the first available in the order **UMA → MACE → SevenNet → CHGNet**, or you can pass `--mlip <name>` to force a specific one. Prefer one MLIP per environment: the packages pin mutually incompatible torch/e3nn versions, so installing several into one env can silently break — see [ADR 0001](docs/adr/0001-per-mlip-envs.md). UMA is preferred when installed (it is the most accurate), but it is gated on Hugging Face and unusable without an access request — so MACE is placed ahead of SevenNet/CHGNet as the readily-usable fallback. A fresh environment with only `pip install mace-torch` lands on a working model with no access request. UMA's Hugging Face setup is covered in [UMA_USAGE_GUIDE.md](docs/UMA_USAGE_GUIDE.md#2-hugging-face-access).
 
 ### Windows Setup
 
@@ -73,7 +87,7 @@ For detailed Windows installation instructions, see: [Windows Setup Guide](docs/
 
 The package installs the following entry points:
 
-- `mlip` — top-level namespace; `mlip --help` lists every subcommand
+- `mlip` — top-level namespace; `mlip --help` lists every subcommand (including `mlip doctor`, the environment self-check)
 - `optimize`, `md`, `neb`, `autoneb`, `autoneb-results`, `benchmark` — standalone aliases
 
 `mlip <subcmd>` is equivalent to running `<subcmd>` directly. For example, `mlip md run --structure POSCAR` and `md run --structure POSCAR` do the same thing. The examples below use the standalone form for brevity. All commands support `--help`.
@@ -341,7 +355,7 @@ For a complete reference of every file each command writes — filename, format,
 ## Developer Notes
 
 - CLI powered by [`typer`](https://typer.tiangolo.com/)
-- Entry points defined in [setup.py](setup.py):
+- Entry points defined in [pyproject.toml](pyproject.toml) (`[project.scripts]`):
   ```python
   console_scripts = [
       "md = mlip_platform.cli.commands.md:app",
@@ -357,7 +371,7 @@ For a complete reference of every file each command writes — filename, format,
 - Automatic plot generation for all trajectory-based calculations
 - Shared utilities in `core/utils.py` (fmax calculation, unit conversions)
 - Parameter I/O in `core/params_io.py` (reduces duplication across commands)
-- Integrates with [asetools](https://github.com/manuelarcer/asetools) for NEB sanity checks
+- Optional integration with [asetools](https://github.com/manuelarcer/asetools) for NEB interpolation sanity checks (`pip install -e ".[neb]"`; the import in `core/neb.py` is guarded, so the platform runs without it)
 
 ---
 

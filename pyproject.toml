@@ -27,7 +27,9 @@ classifiers = [
 # mutually incompatible pins and must be installed one-per-env via the recipes
 # in docs/install/. See ADR 0001.
 dependencies = [
-    "typer[all]",
+    # plain "typer" — the [all] extra is empty in modern typer (>=0.12 bundles
+    # rich and shellingham) and only produces a pip warning on fresh installs
+    "typer",
     "ase",
     "pandas",
     "matplotlib",
