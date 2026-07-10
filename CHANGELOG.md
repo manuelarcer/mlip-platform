@@ -10,6 +10,15 @@ All notable changes to this project are documented here. Format follows [Keep a 
 - `build_calculator()` in `mlip_platform.cli.utils`: builds and returns an ASE calculator without attaching it, so the loaded model can be reused across many structures. `setup_calculator()` is now a thin build-and-attach wrapper around it.
 - `optimize run` / `optimize batch` now also write a fixed-name `CONTCAR` (copy of the final relaxed structure) so a follow-up DFT run managed by asetools can restart from the directory.
 - `optimize run` / `optimize batch` `--no-plot` flag: skip the per-structure `*_convergence.png` figure (the `*_convergence.csv` is still written). The matplotlib figure/save is per-structure IO that dominates short relaxations, so disabling it materially speeds up large batches — measured ~3x on frozen-surface site scans (BFGS, single-adsorbate), where the plot cost more per job than the model load. Threaded through `run_optimization(plot=...)`.
+- `neb run --device {cpu|cuda}`: run NEB on GPU. Defaults to `cpu` (unlike `optimize`/`md`, which default to `auto`); pass `--device cuda` for GPU runs. The device is recorded in `neb_parameters.txt` and honored on `--restart`.
+- `neb run` support for multi-head MACE foundation models via `--mace-head` (same head values as the other commands); the resolved MACE head is logged in the NEB parameter file.
+- CI: `tests.yml` GitHub Actions workflow runs the unit suite with a diff-coverage gate (>= 90% on changed lines) on every push/PR, plus a `weekly.yml` scheduled quality-check run. New baseline characterization tests (golden outputs + physics invariants) guard against regressions.
+
+### Changed
+
+- NEB now uses ASE's `improvedtangent` tangent method instead of the older default (`aseneb`), which improves convergence on curved reaction paths.
+- All parameter files (`opt_params.txt`, `md_params.txt`, `neb_parameters.txt`) now record the resolved MLIP head/task, so a run's provenance is fully captured in its parameter file.
+- `md_energy.png` plots kinetic energy on a twin right axis for readability alongside total/potential energy.
 
 ## [0.3.0] - 2026-05-08
 

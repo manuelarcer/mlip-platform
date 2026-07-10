@@ -85,7 +85,7 @@ These apply to `optimize`, `md`, `neb`, `autoneb`, and `benchmark`:
 - `--mlip`: Model tag. `auto` (default) picks the first installed in order **UMA → SevenNet → MACE → CHGNet**, or pass an explicit tag: any `uma-*` (e.g. `uma-s-1p2`), `mace` (MACE-MP-0), `mace-mh-1` (multi-head foundation), `7net-mf-ompa`, `chgnet`.
 - `--uma-task`: Task head for UMA models — `omat` (default, bulk inorganic), `oc20` (catalysis/surfaces), `omol` (molecules), `odac`. Ignored for non-UMA models.
 - `--mace-head`: Head for multi-head MACE models (`mace-mh-*`) — `omat_pbe` (default), `oc20_usemppbe`, `matpes_r2scan`, `mp_pbe_refit_add`, `omol`, `spice_wB97M`. Ignored for plain `mace`.
-- `--device`: `auto` (default; cuda if available, else cpu), `cuda`, or `cpu`. On multi-GPU nodes set `CUDA_VISIBLE_DEVICES` to choose the GPU.
+- `--device`: `auto` (default; cuda if available, else cpu), `cuda`, or `cpu`. On multi-GPU nodes set `CUDA_VISIBLE_DEVICES` to choose the GPU. (`neb` is the exception: it defaults to `cpu`, so pass `--device cuda` explicitly for GPU NEB runs.)
 
 **Example (multi-head MACE on a catalysis surface, forced to GPU):**
 ```bash
@@ -103,6 +103,7 @@ optimize run --structure path/to/structure.vasp
 - `--fmax`: Force convergence threshold in eV/Å (default: `0.05`)
 - `--max-steps`: Maximum optimization steps (default: `200`)
 - `--relax-cell`: Also relax the simulation cell (VASP ISIF=3-equivalent), wrapping the atoms in ASE's `FrechetCellFilter`. Off by default (positions only).
+- `--no-plot`: Skip the per-structure `*_convergence.png` figure (the `*_convergence.csv` is still written). The plot is per-structure IO that dominates short relaxations, so disabling it materially speeds up large batches.
 
 **Example (positions only):**
 ```bash
@@ -128,6 +129,7 @@ optimize batch --parent runs/ --mlip uma-s-1p2 --fmax 0.05
 
 - `--input-name`: glob for the input inside each subdir (default `*.vasp`, i.e. exactly one `.vasp` file per subdir; the platform's own `*_final.vasp` outputs are ignored). Use e.g. `POSCAR` for a fixed name.
 - `--skip-existing`: skip subdirs that already have a `CONTCAR` (resume a partial batch).
+- `--no-plot`: skip the per-structure convergence PNG for every relaxation in the batch (measured ~3x speedup on frozen-surface site scans, where the plot cost more per job than the model load).
 - A structure that errors or fails to converge is logged and the batch continues; results are summarized in `batch_summary.csv` written into `--parent`.
 
 ---
@@ -185,10 +187,14 @@ neb run --initial path/to/initial.vasp --final path/to/final.vasp
 - `--neb-optimizer`: Optimizer for NEB (`fire`, `mdmin`, `bfgs`, `lbfgs`)
 - `--neb-max-steps`: Maximum NEB steps
 - `--optimize-endpoints / --no-optimize-endpoints`: Pre-optimize endpoints (default: enabled)
+- `--device`: Compute device for the MLIP calculator — `cpu` (default) or `cuda`. Unlike `optimize`/`md` (which default to `auto`), NEB runs on CPU unless you pass `--device cuda`.
+- `--mace-head`: Head for multi-head MACE models (`mace-mh-*`), same values as the other commands.
+
+The band uses ASE's `improvedtangent` NEB tangent method (not the older default `aseneb`).
 
 **Example:**
 ```bash
-neb run --initial POSCAR_A --final POSCAR_B --num-images 7 --fmax 0.05 --mlip uma-s-1p1
+neb run --initial POSCAR_A --final POSCAR_B --num-images 7 --fmax 0.05 --mlip uma-s-1p2
 ```
 
 **Outputs:** `A2B.traj`, `A2B_full.traj`, `neb.log`, `neb_convergence.csv`, `neb_convergence.png`, `neb_energy.png`, `neb_data.csv`, `neb_parameters.txt`, POSCAR files (`00/`, `01/`, ...)
@@ -200,7 +206,7 @@ Resume a previous NEB calculation with optional parameter overrides:
 ```bash
 neb run --restart
 neb run --restart --fmax 0.03 --neb-max-steps 1000
-neb run --restart --mlip uma-m-1p1  # Warning: changes MLIP model
+neb run --restart --mlip mace         # Warning: changes MLIP model
 ```
 
 The restart mechanism:
