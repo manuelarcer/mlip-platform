@@ -22,8 +22,8 @@ jobs:
       - name: Install package with dev deps
         run: |
           python -m pip install --upgrade pip
-          # PyPI's "asetools" is an unrelated package; install the real one from GitHub.
-          pip install git+https://github.com/manuelarcer/asetools.git
+          # asetools comes from GitHub via setup.py's direct reference; no
+          # separate install step, so CI exercises the same path users run.
           pip install -e ".[dev]"
 
       - name: Run test suite with coverage

@@ -40,10 +40,14 @@ git clone https://github.com/manuelarcer/mlip-platform.git
 cd mlip-platform
 ```
 
-2. **Install the package** (also installs [asetools](https://github.com/manuelarcer/asetools) dependency)
+2. **Install the package**
 ```bash
 pip install -e .
 ```
+
+This also installs the [asetools](https://github.com/manuelarcer/asetools) dependency directly from GitHub.
+
+> **Warning**: Do not `pip install asetools` manually — the package named `asetools` on PyPI is an unrelated project (Aseprite tooling). `pip install -e .` pulls the correct one from GitHub automatically. If the wrong one is already installed, remove it first: `pip uninstall asetools`, then rerun `pip install -e .`.
 
 3. **Install MLIP models** (choose one or more)
 

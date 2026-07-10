@@ -15,7 +15,9 @@ setup(
         "pandas",
         "matplotlib",
         "scipy",
-        "asetools",
+        # PyPI's "asetools" is an unrelated package (Aseprite tooling); the
+        # real dependency lives on GitHub, so pin it as a direct reference.
+        "asetools @ git+https://github.com/manuelarcer/asetools.git",
     ],
     extras_require={
         "dev": [
