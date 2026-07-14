@@ -130,4 +130,3 @@ The 0.1 series predates this CHANGELOG; entries are reconstructed from the git h
 [0.4.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.4.0
 [0.3.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.3.0
 [0.2.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.2.0
-[0.1.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.1.0
