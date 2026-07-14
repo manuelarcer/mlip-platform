@@ -1,4 +1,4 @@
-# mlip_platform
+# mliprun
 
 A CLI + Python API that drives ASE-based optimisation, MD, and NEB workflows using one of several supported machine-learning interatomic potentials (MLIPs).
 
@@ -20,7 +20,7 @@ _Avoid_: virtualenv (too generic), conda env (only one tool).
 A per-MLIP markdown file under `docs/install/<tag-or-package>.md` containing tested conda *and* venv instructions for creating an **MLIP env**, plus any first-run notes (HF auth for UMA, checkpoint pre-download for MACE-MH). The platform never executes installs; it points users at the recipe.
 
 **Calculator**:
-The ASE `Calculator` subclass instantiated from an MLIP package (e.g. `MACECalculator`, `FAIRChemCalculator`, `SevenNetCalculator`, `CHGNetCalculator`). Lives in the **MLIP env**, attached to an `ase.Atoms` object by `setup_calculator()` in `src/mlip_platform/cli/utils.py`.
+The ASE `Calculator` subclass instantiated from an MLIP package (e.g. `MACECalculator`, `FAIRChemCalculator`, `SevenNetCalculator`, `CHGNetCalculator`). Lives in the **MLIP env**, attached to an `ase.Atoms` object by `setup_calculator()` in `src/mliprun/cli/utils.py`.
 
 ## Relationships
 

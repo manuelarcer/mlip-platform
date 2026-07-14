@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mlip-platform"
+name = "mliprun"
 version = "0.3.0"
 description = "CLI platform for running MLIP-based MD, NEB, and Benchmarking"
 readme = "README.md"
@@ -57,17 +57,17 @@ dev = [
 ]
 
 [project.scripts]
-mlip = "mlip_platform.cli.main:app"
-md = "mlip_platform.cli.commands.md:app"
-neb = "mlip_platform.cli.commands.neb:app"
-autoneb = "mlip_platform.cli.commands.autoneb:app"
-autoneb-results = "mlip_platform.cli.commands.autoneb_results:app"
-benchmark = "mlip_platform.cli.commands.benchmark:app"
-optimize = "mlip_platform.cli.commands.optimize:app"
+mlip = "mliprun.cli.main:app"
+md = "mliprun.cli.commands.md:app"
+neb = "mliprun.cli.commands.neb:app"
+autoneb = "mliprun.cli.commands.autoneb:app"
+autoneb-results = "mliprun.cli.commands.autoneb_results:app"
+benchmark = "mliprun.cli.commands.benchmark:app"
+optimize = "mliprun.cli.commands.optimize:app"
 
 [project.urls]
-Homepage = "https://github.com/manuelarcer/mlip-platform"
-Repository = "https://github.com/manuelarcer/mlip-platform"
+Homepage = "https://github.com/manuelarcer/mliprun"
+Repository = "https://github.com/manuelarcer/mliprun"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
@@ -78,4 +78,4 @@ zip-safe = false
 where = ["src"]
 
 [tool.mutmut]
-paths_to_mutate = "src/mlip_platform/"
+paths_to_mutate = "src/mliprun/"

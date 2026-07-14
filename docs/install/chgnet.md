@@ -17,7 +17,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cu121   # CUDA 12
 # pip install torch --index-url https://download.pytorch.org/whl/cpu   # CPU
 
 pip install chgnet ase
-pip install -e /path/to/mlip_platform   # or: pip install mlip-platform
+pip install -e /path/to/mliprun   # or: pip install mliprun
 ```
 
 ## Venv recipe (preferred for local dev)
@@ -27,7 +27,7 @@ python3.11 -m venv .venv-chgnet
 source .venv-chgnet/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install chgnet ase
-pip install -e /path/to/mlip_platform
+pip install -e /path/to/mliprun
 ```
 
 ## Sanity check

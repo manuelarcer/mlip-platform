@@ -6,18 +6,18 @@ The CLI commands wrap a small set of pure-Python functions and one class. This p
 
 | Module | Public symbol | Purpose |
 |--------|---------------|---------|
-| `mlip_platform.cli.utils` | `build_calculator(mlip, uma_task="omat", device="auto", mace_head="omat_pbe")` | Build and **return** an MLIP calculator (loads model weights once) without attaching it |
-| `mlip_platform.cli.utils` | `setup_calculator(atoms, mlip, uma_task="omat", device="auto", mace_head="omat_pbe")` | Attach the right MLIP calculator to an `Atoms` object (thin wrapper over `build_calculator`) |
-| `mlip_platform.cli.utils` | `detect_mlip()` / `validate_mlip(name)` / `resolve_mlip(name)` | Auto-detect / validate MLIP availability |
-| `mlip_platform.core.optimize` | `run_optimization(atoms, ...)` | Geometry optimization with progress logging and plots |
-| `mlip_platform.core.optimize` | `OPTIMIZER_MAP` | dict of supported ASE optimizers |
-| `mlip_platform.core.md` | `setup_dynamics(atoms, ...)` | Build a configured ASE dynamics object |
-| `mlip_platform.core.md` | `run_md(atoms, ...)` | Full MD run with logging, CSV, and plots |
-| `mlip_platform.core.neb` | `CustomNEB(initial, final, ...)` | NEB/AutoNEB orchestration class |
-| `mlip_platform.core.params_io` | `write_parameters_file(path, title, params)` | Standard parameter file writer used by every command |
-| `mlip_platform.core.params_io` | `write_endpoint_results(path, results)` | Endpoint-optimization summary writer |
-| `mlip_platform.core.utils` | `calc_fmax(forces)` | Maximum atomic force magnitude (eV/Å) |
-| `mlip_platform.core.utils` | `GPA_TO_EV_PER_ANG3` | Pressure unit conversion constant |
+| `mliprun.cli.utils` | `build_calculator(mlip, uma_task="omat", device="auto", mace_head="omat_pbe")` | Build and **return** an MLIP calculator (loads model weights once) without attaching it |
+| `mliprun.cli.utils` | `setup_calculator(atoms, mlip, uma_task="omat", device="auto", mace_head="omat_pbe")` | Attach the right MLIP calculator to an `Atoms` object (thin wrapper over `build_calculator`) |
+| `mliprun.cli.utils` | `detect_mlip()` / `validate_mlip(name)` / `resolve_mlip(name)` | Auto-detect / validate MLIP availability |
+| `mliprun.core.optimize` | `run_optimization(atoms, ...)` | Geometry optimization with progress logging and plots |
+| `mliprun.core.optimize` | `OPTIMIZER_MAP` | dict of supported ASE optimizers |
+| `mliprun.core.md` | `setup_dynamics(atoms, ...)` | Build a configured ASE dynamics object |
+| `mliprun.core.md` | `run_md(atoms, ...)` | Full MD run with logging, CSV, and plots |
+| `mliprun.core.neb` | `CustomNEB(initial, final, ...)` | NEB/AutoNEB orchestration class |
+| `mliprun.core.params_io` | `write_parameters_file(path, title, params)` | Standard parameter file writer used by every command |
+| `mliprun.core.params_io` | `write_endpoint_results(path, results)` | Endpoint-optimization summary writer |
+| `mliprun.core.utils` | `calc_fmax(forces)` | Maximum atomic force magnitude (eV/Å) |
+| `mliprun.core.utils` | `GPA_TO_EV_PER_ANG3` | Pressure unit conversion constant |
 
 Lazy imports keep startup fast: heavy MLIP packages (`fairchem`, `mace`, `sevenn`, `chgnet`) are only imported when their calculator is actually needed.
 
@@ -27,7 +27,7 @@ Lazy imports keep startup fast: heavy MLIP packages (`fairchem`, `mace`, `sevenn
 
 ```python
 from ase.io import read
-from mlip_platform.cli.utils import setup_calculator
+from mliprun.cli.utils import setup_calculator
 
 atoms = read("structure.vasp")
 setup_calculator(atoms, mlip="uma-s-1p2", uma_task="omat")  # mutates atoms.calc
@@ -46,7 +46,7 @@ setup_calculator(atoms, mlip="uma-s-1p2", uma_task="omat")  # mutates atoms.calc
 To relax or evaluate **many** structures, load the model once with `build_calculator` and reuse the returned calculator, instead of calling `setup_calculator` (which rebuilds it) per structure. This is what `optimize batch` does internally:
 
 ```python
-from mlip_platform.cli.utils import build_calculator
+from mliprun.cli.utils import build_calculator
 
 calc = build_calculator(mlip="uma-s-1p2", uma_task="omat")  # expensive: loads weights once
 for atoms in many_structures:
@@ -57,7 +57,7 @@ for atoms in many_structures:
 Auto-detection is also exposed:
 
 ```python
-from mlip_platform.cli.utils import detect_mlip, resolve_mlip
+from mliprun.cli.utils import detect_mlip, resolve_mlip
 
 detect_mlip()              # returns first installed, in order: "uma-s-1p2" / "mace" / "7net-mf-ompa" / "chgnet"
 resolve_mlip("auto")       # detect + echo to stdout — convenience wrapper
@@ -70,8 +70,8 @@ resolve_mlip("uma-s-1p2")  # validate availability + echo
 
 ```python
 from ase.io import read
-from mlip_platform.cli.utils import setup_calculator
-from mlip_platform.core.optimize import run_optimization
+from mliprun.cli.utils import setup_calculator
+from mliprun.core.optimize import run_optimization
 
 atoms = read("structure.vasp")
 setup_calculator(atoms, "uma-s-1p2", "omat")
@@ -105,8 +105,8 @@ For an end-to-end run with logging, CSV, and plots:
 
 ```python
 from ase.io import read
-from mlip_platform.cli.utils import setup_calculator
-from mlip_platform.core.md import run_md
+from mliprun.cli.utils import setup_calculator
+from mliprun.core.md import run_md
 
 atoms = read("structure.vasp")
 setup_calculator(atoms, "uma-s-1p2", "omat")
@@ -129,7 +129,7 @@ run_md(
 For full control of the dynamics object (e.g. to attach extra observers, drive the integrator step-by-step, or stop early), use the lower-level builder:
 
 ```python
-from mlip_platform.core.md import setup_dynamics
+from mliprun.core.md import setup_dynamics
 
 dyn = setup_dynamics(
     atoms,
@@ -160,7 +160,7 @@ For the full parameter list and unit conventions, see [MD_REFERENCE.md](MD_REFER
 ```python
 from ase.io import read
 from ase.optimize import FIRE
-from mlip_platform.core.neb import CustomNEB
+from mliprun.core.neb import CustomNEB
 
 initial = read("initial.vasp", format="vasp")
 final   = read("final.vasp",   format="vasp")
@@ -221,7 +221,7 @@ Every CLI command writes a `*_params.txt` echo of its arguments using a shared h
 
 ```python
 from pathlib import Path
-from mlip_platform.core.params_io import write_parameters_file
+from mliprun.core.params_io import write_parameters_file
 
 write_parameters_file(
     Path("./run/params.txt"),
@@ -241,7 +241,7 @@ Two-column layout (`{key:<23}{value}`); keys should already include their traili
 ## Small helpers
 
 ```python
-from mlip_platform.core.utils import calc_fmax, GPA_TO_EV_PER_ANG3
+from mliprun.core.utils import calc_fmax, GPA_TO_EV_PER_ANG3
 
 fmax = calc_fmax(atoms.get_forces())          # max-magnitude force, eV/Å
 pressure_eV_per_A3 = 1.0 * GPA_TO_EV_PER_ANG3 # 1 GPa in ASE internal units

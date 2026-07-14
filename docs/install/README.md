@@ -17,4 +17,4 @@ Pick the MLIP that fits your problem, then follow its recipe to create a dedicat
 2. Open its recipe and follow the conda or venv block (conda preferred on HPC; venv preferred for local dev).
 3. Activate that env whenever you want to use that MLIP. Switch envs to switch MLIPs.
 
-If you need to compare results across MLIPs, keep one env per MLIP and run each `mlip-platform` command after activating the relevant env.
+If you need to compare results across MLIPs, keep one env per MLIP and run each `mliprun` command after activating the relevant env.

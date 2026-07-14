@@ -1,6 +1,6 @@
 # UMA Models Usage Guide
 
-This guide explains how to use UMA (Universal Models for Atoms, FAIRChem) models in the MLIP Platform.
+This guide explains how to use UMA (Universal Models for Atoms, FAIRChem) models in the mliprun.
 
 ## Supported Model
 
@@ -8,7 +8,7 @@ This guide explains how to use UMA (Universal Models for Atoms, FAIRChem) models
 |-------|-------------|
 | **uma-s-1p2** | Current default. Used when `--mlip auto` resolves to UMA, or when `--mlip uma-s-1p2` is set explicitly. |
 
-The platform's MLIP validator accepts any tag that starts with `uma-` and forwards it to FAIRChem (see `src/mlip_platform/cli/utils.py`), so older releases such as `uma-s-1p1` or `uma-m-1p1` still load if you specify them and have the corresponding weights cached. They are no longer documented here; new work should use `uma-s-1p2`.
+The platform's MLIP validator accepts any tag that starts with `uma-` and forwards it to FAIRChem (see `src/mliprun/cli/utils.py`), so older releases such as `uma-s-1p1` or `uma-m-1p1` still load if you specify them and have the corresponding weights cached. They are no longer documented here; new work should use `uma-s-1p2`.
 
 UMA supports four task heads:
 
@@ -31,7 +31,7 @@ Pass the task with `--uma-task` (CLI) or `uma_task=` (Python API).
 pip install fairchem-core
 ```
 
-Then re-install the MLIP platform so the entry points are registered against the right environment:
+Then re-install mliprun so the entry points are registered against the right environment:
 
 ```bash
 pip install -e .
@@ -186,7 +186,7 @@ The platform also exposes a thin helper that does the same calculator wiring:
 
 ```python
 from ase.io import read
-from mlip_platform.cli.utils import setup_calculator
+from mliprun.cli.utils import setup_calculator
 
 atoms = read("structure.vasp")
 atoms = setup_calculator(atoms, mlip="uma-s-1p2", uma_task="omat")
@@ -197,7 +197,7 @@ atoms = setup_calculator(atoms, mlip="uma-s-1p2", uma_task="omat")
 ```python
 from ase.io import read
 from ase.optimize import FIRE
-from mlip_platform.core.neb import CustomNEB
+from mliprun.core.neb import CustomNEB
 
 initial = read("initial.vasp", format="vasp")
 final   = read("final.vasp",   format="vasp")

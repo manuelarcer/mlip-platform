@@ -19,7 +19,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cu121
 # pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 pip install mace-torch ase
-pip install -e /path/to/mlip_platform   # or: pip install mlip-platform
+pip install -e /path/to/mliprun   # or: pip install mliprun
 ```
 
 ## Venv recipe (preferred for local dev)
@@ -31,7 +31,7 @@ source .venv-mace/bin/activate
 # Pick ONE torch line as above.
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install mace-torch ase
-pip install -e /path/to/mlip_platform
+pip install -e /path/to/mliprun
 ```
 
 ## Sanity check
@@ -60,7 +60,7 @@ curl -L -o ~/.cache/mace/mace-mh-0.model \
   https://github.com/ACEsuit/mace-foundations/releases/download/mace_mh_1/mace-mh-0.model
 ```
 
-Use the `--mace-head` CLI flag to select a head (default `omat_pbe`). See `MACE_HEAD_HELP` in `src/mlip_platform/cli/utils.py` for the head menu.
+Use the `--mace-head` CLI flag to select a head (default `omat_pbe`). See `MACE_HEAD_HELP` in `src/mliprun/cli/utils.py` for the head menu.
 
 ## <a id="mace-mh-1"></a>Tag: `mace-mh-1` (multi-head foundation)
 

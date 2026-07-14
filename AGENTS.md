@@ -1,4 +1,4 @@
-# Agent guide — mlip-platform
+# Agent guide — mliprun
 
 Orientation for AI coding assistants (Claude Code, Cursor, Codex, …) and new
 users driving this repo. Everything here is also human-readable; the README
@@ -15,8 +15,8 @@ vocabulary (MLIP tag vs package vs env) — read it before discussing installs.
 ## Install (fresh machine)
 
 ```bash
-git clone https://github.com/manuelarcer/mlip-platform.git
-cd mlip-platform
+git clone https://github.com/manuelarcer/mliprun.git
+cd mliprun
 pip install -e .          # base install: CLI + ASE, no MLIP yet
 pip install mace-torch    # simplest working MLIP (no access request needed)
 mlip doctor               # verify: exits 0 when the env is usable

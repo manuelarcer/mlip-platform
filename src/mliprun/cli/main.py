@@ -1,6 +1,6 @@
 import typer
 
-from mlip_platform.cli.commands import (
+from mliprun.cli.commands import (
     autoneb,
     autoneb_results,
     benchmark,
@@ -10,7 +10,7 @@ from mlip_platform.cli.commands import (
     optimize,
 )
 
-app = typer.Typer(help="MLIP Platform: optimization, MD, NEB, AutoNEB, and benchmarking with MLIP models.")
+app = typer.Typer(help="mliprun: optimization, MD, NEB, AutoNEB, and benchmarking with MLIP models.")
 
 app.add_typer(optimize.app, name="optimize", help="Run geometry optimization on a structure")
 app.add_typer(md.app, name="md", help="Run MD simulations")

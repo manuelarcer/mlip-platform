@@ -5,9 +5,9 @@ import typer
 from ase.io import read
 from ase.optimize import FIRE
 
-from mlip_platform.core.neb import CustomNEB
-from mlip_platform.core.params_io import write_parameters_file, write_endpoint_results
-from mlip_platform.cli.utils import MACE_HEAD_HELP, MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
+from mliprun.core.neb import CustomNEB
+from mliprun.core.params_io import write_parameters_file, write_endpoint_results
+from mliprun.cli.utils import MACE_HEAD_HELP, MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
 
 app = typer.Typer()
 

@@ -1,4 +1,4 @@
-# Contributing to MLIP Platform
+# Contributing to mliprun
 
 Bug reports, feature requests, and pull requests are welcome. This guide covers the minimum you need to know to land a change.
 
@@ -12,8 +12,8 @@ Issue templates live under `.github/ISSUE_TEMPLATE/`.
 ## Setting up a development environment
 
 ```bash
-git clone https://github.com/manuelarcer/mlip-platform.git
-cd mlip-platform
+git clone https://github.com/manuelarcer/mliprun.git
+cd mliprun
 pip install -e ".[dev,neb]"   # dev = pytest + coverage tools; neb = optional asetools
 
 # Optionally install ONE MLIP for integration tests. One MLIP per environment —
@@ -54,15 +54,15 @@ pytestmark = pytest.mark.uma   # entire module gated on fairchem-core
 
 ## Code style
 
-- **NumPy-style docstrings** for any new public function or class. The existing modules under `src/mlip_platform/core/` are the reference.
+- **NumPy-style docstrings** for any new public function or class. The existing modules under `src/mliprun/core/` are the reference.
 - **No new emojis** in source files unless they were already present in the surrounding context.
-- **Lazy imports** for heavy MLIP packages — load them inside the function that needs the calculator, not at module top. See `src/mlip_platform/cli/utils.py` for the established pattern (`@functools.lru_cache(maxsize=1)` around the importer).
+- **Lazy imports** for heavy MLIP packages — load them inside the function that needs the calculator, not at module top. See `src/mliprun/cli/utils.py` for the established pattern (`@functools.lru_cache(maxsize=1)` around the importer).
 - **Type hints** on new public functions where they don't add noise. Internal helpers do not require them.
 
 ## CLI conventions
 
-- Every subcommand uses Typer and exposes a single `run` (or `results`) entry. Match the existing files under `src/mlip_platform/cli/commands/`.
-- The `--mlip` and `--uma-task` help strings are centralized in `src/mlip_platform/cli/utils.py` (`MLIP_HELP`, `UMA_TASK_HELP`). Reuse them.
+- Every subcommand uses Typer and exposes a single `run` (or `results`) entry. Match the existing files under `src/mliprun/cli/commands/`.
+- The `--mlip` and `--uma-task` help strings are centralized in `src/mliprun/cli/utils.py` (`MLIP_HELP`, `UMA_TASK_HELP`). Reuse them.
 - Output files belong in the directory documented in [docs/OUTPUTS.md](docs/OUTPUTS.md). New files added by an existing command should be added to that table in the same PR.
 - Echo the resolved MLIP name once per run (`Auto-detected MLIP: …` / `Using MLIP: …`) — `resolve_mlip` already does this.
 
@@ -82,7 +82,7 @@ pytestmark = pytest.mark.uma   # entire module gated on fairchem-core
 
 Every push and pull request runs `.github/workflows/tests.yml`:
 
-- The unit suite runs under coverage (`pytest --cov=mlip_platform --cov-report=xml`).
+- The unit suite runs under coverage (`pytest --cov=mliprun --cov-report=xml`).
 - A **diff-coverage gate** requires **>= 90% coverage on the lines your PR changes** (`diff-cover coverage.xml --compare-branch=origin/main --fail-under=90`, excluding `setup.py` and `scripts/*`). A PR that adds untested code will fail here — add tests for new lines before pushing.
 
 A separate scheduled workflow (`.github/workflows/weekly.yml`) runs broader quality checks weekly; you do not need to trigger it for a PR.

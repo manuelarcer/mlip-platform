@@ -1,7 +1,7 @@
-# MLIP Platform
+# mliprun
 
-[![Tests](https://github.com/manuelarcer/mlip-platform/actions/workflows/tests.yml/badge.svg)](https://github.com/manuelarcer/mlip-platform/actions/workflows/tests.yml)
-[![Fresh-install smoke test](https://github.com/manuelarcer/mlip-platform/actions/workflows/install-smoke.yml/badge.svg)](https://github.com/manuelarcer/mlip-platform/actions/workflows/install-smoke.yml)
+[![Tests](https://github.com/manuelarcer/mliprun/actions/workflows/tests.yml/badge.svg)](https://github.com/manuelarcer/mliprun/actions/workflows/tests.yml)
+[![Fresh-install smoke test](https://github.com/manuelarcer/mliprun/actions/workflows/install-smoke.yml/badge.svg)](https://github.com/manuelarcer/mliprun/actions/workflows/install-smoke.yml)
 
 A modular CLI toolkit for evaluating Machine Learning Interatomic Potentials (MLIPs) via:
 
@@ -65,8 +65,8 @@ sequenceDiagram
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/manuelarcer/mlip-platform.git
-cd mlip-platform
+git clone https://github.com/manuelarcer/mliprun.git
+cd mliprun
 ```
 
 2. **Install the package**
@@ -392,13 +392,13 @@ For a complete reference of every file each command writes — filename, format,
 - Entry points defined in [pyproject.toml](pyproject.toml) (`[project.scripts]`):
   ```toml
   [project.scripts]
-  mlip = "mlip_platform.cli.main:app"
-  md = "mlip_platform.cli.commands.md:app"
-  neb = "mlip_platform.cli.commands.neb:app"
-  autoneb = "mlip_platform.cli.commands.autoneb:app"
-  autoneb-results = "mlip_platform.cli.commands.autoneb_results:app"
-  benchmark = "mlip_platform.cli.commands.benchmark:app"
-  optimize = "mlip_platform.cli.commands.optimize:app"
+  mlip = "mliprun.cli.main:app"
+  md = "mliprun.cli.commands.md:app"
+  neb = "mliprun.cli.commands.neb:app"
+  autoneb = "mliprun.cli.commands.autoneb:app"
+  autoneb-results = "mliprun.cli.commands.autoneb_results:app"
+  benchmark = "mliprun.cli.commands.benchmark:app"
+  optimize = "mliprun.cli.commands.optimize:app"
   ```
 - Lazy imports for fast CLI startup (no heavy dependencies loaded until needed)
 - Output locations: `optimize`/`md` write next to the input structure; `neb`/`autoneb` write into the current working directory (see [OUTPUTS.md](docs/OUTPUTS.md))

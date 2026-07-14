@@ -1,9 +1,9 @@
-"""Tests for mlip_platform.core.utils."""
+"""Tests for mliprun.core.utils."""
 import numpy as np
 import pytest
 from pathlib import Path
 
-from mlip_platform.core.utils import calc_fmax, GPA_TO_EV_PER_ANG3
+from mliprun.core.utils import calc_fmax, GPA_TO_EV_PER_ANG3
 
 
 class TestCalcFmax:
@@ -35,7 +35,7 @@ class TestConstants:
 
 class TestWriteParametersFile:
     def test_writes_correct_format(self, tmp_path):
-        from mlip_platform.core.params_io import write_parameters_file
+        from mliprun.core.params_io import write_parameters_file
 
         path = tmp_path / "params.txt"
         write_parameters_file(path, "Test Parameters", {
@@ -51,7 +51,7 @@ class TestWriteParametersFile:
         assert "200" in content
 
     def test_empty_params(self, tmp_path):
-        from mlip_platform.core.params_io import write_parameters_file
+        from mliprun.core.params_io import write_parameters_file
 
         path = tmp_path / "empty.txt"
         write_parameters_file(path, "Empty", {})
@@ -61,7 +61,7 @@ class TestWriteParametersFile:
 
 class TestWriteEndpointResults:
     def test_writes_all_sections(self, tmp_path):
-        from mlip_platform.core.params_io import write_endpoint_results
+        from mliprun.core.params_io import write_endpoint_results
 
         path = tmp_path / "endpoints.txt"
         results = {
@@ -101,7 +101,7 @@ class TestWriteEndpointResults:
         assert "-10.500000" in content
 
     def test_writes_warning_reasons(self, tmp_path):
-        from mlip_platform.core.params_io import write_endpoint_results
+        from mliprun.core.params_io import write_endpoint_results
 
         path = tmp_path / "endpoints_warn.txt"
         results = {

@@ -101,7 +101,7 @@ CHGNET_AVAILABLE = _check_chgnet()
 
 # Base URL for the install recipes on GitHub. Update if the repo moves.
 _INSTALL_DOCS_BASE = (
-    "https://github.com/manuelarcer/mlip-platform/blob/main/docs/install"
+    "https://github.com/manuelarcer/mliprun/blob/main/docs/install"
 )
 
 # MLIP tag → recipe path (filename, optionally with #anchor). Unknown

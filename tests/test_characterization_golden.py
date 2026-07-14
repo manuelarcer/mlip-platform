@@ -15,10 +15,10 @@ from ase.io import read
 from golden_inputs import (
     GOLDEN_DIR, make_md_atoms, make_neb_pair, make_opt_atoms,
 )
-from mlip_platform.core.md import run_md
-from mlip_platform.core.neb import CustomNEB
-from mlip_platform.core.optimize import run_optimization
-from mlip_platform.core.utils import calc_fmax
+from mliprun.core.md import run_md
+from mliprun.core.neb import CustomNEB
+from mliprun.core.optimize import run_optimization
+from mliprun.core.utils import calc_fmax
 
 # Per-quantity tolerances: energies and forces are not the same scale, and
 # optimizer/integrator path-dependence amplifies float noise in positions.

@@ -20,7 +20,7 @@ from ase.mep.neb import idpp_interpolate
 from ase.optimize import FIRE, MDMin
 from scipy.interpolate import make_interp_spline
 
-from mlip_platform.core.utils import calc_fmax
+from mliprun.core.utils import calc_fmax
 
 logger = logging.getLogger(__name__)
 
@@ -326,7 +326,7 @@ class CustomNEB:
             return mace_mp(model="medium", device=device)
         elif model.startswith("mace-mh-"):
             from mace.calculators import MACECalculator
-            from mlip_platform.cli.utils import _ensure_mace_foundation_checkpoint
+            from mliprun.cli.utils import _ensure_mace_foundation_checkpoint
             ckpt = _ensure_mace_foundation_checkpoint(model)
             return MACECalculator(model_paths=ckpt, device=device, head=mace_head)
         elif model.startswith("uma-"):

@@ -3,7 +3,7 @@
 import numpy as np
 from ase import Atoms
 from ase.constraints import FixAtoms
-from mlip_platform.core.neb import CustomNEB
+from mliprun.core.neb import CustomNEB
 
 def test_highly_constrained_neb():
     # 1. Create simple initial and final structures (3 atoms)

@@ -1,8 +1,8 @@
 import typer
 from pathlib import Path
 from ase.io import read
-from mlip_platform.core.md import run_md
-from mlip_platform.cli.utils import (
+from mliprun.core.md import run_md
+from mliprun.cli.utils import (
     DEVICE_HELP,
     MACE_HEAD_HELP,
     MLIP_HELP,

@@ -8,9 +8,9 @@ import pandas as pd
 from ase.calculators.emt import EMT
 
 from golden_inputs import make_cluster, make_md_atoms, make_opt_atoms
-from mlip_platform.core.md import run_md
-from mlip_platform.core.optimize import run_optimization
-from mlip_platform.core.utils import calc_fmax
+from mliprun.core.md import run_md
+from mliprun.core.optimize import run_optimization
+from mliprun.core.utils import calc_fmax
 
 
 class TestTranslationInvariance:

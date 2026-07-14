@@ -19,7 +19,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cu121   # CUDA 12
 # torch_geometric is required by sevenn; install it after torch.
 pip install torch_geometric
 pip install sevenn ase
-pip install -e /path/to/mlip_platform   # or: pip install mlip-platform
+pip install -e /path/to/mliprun   # or: pip install mliprun
 ```
 
 ## Venv recipe (preferred for local dev)
@@ -30,7 +30,7 @@ source .venv-sevenn/bin/activate
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install torch_geometric
 pip install sevenn ase
-pip install -e /path/to/mlip_platform
+pip install -e /path/to/mliprun
 ```
 
 ## Sanity check
