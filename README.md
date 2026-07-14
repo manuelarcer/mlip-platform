@@ -34,6 +34,29 @@ Supports **UMA** (FAIRChem), **MACE**, **SevenNet** (7net), and **CHGNet** model
 
 ---
 
+## How it works
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as mlip CLI
+    participant Model as MLIP calculator
+    participant Files as output files
+
+    User->>CLI: optimize / md / neb run<br/>--structure POSCAR
+    CLI->>CLI: pick model (--mlip auto)<br/>UMA→MACE→SevenNet→CHGNet
+    CLI->>Model: load model once,<br/>attach to structure
+    loop until converged
+        CLI->>Model: energy + forces
+        Model-->>CLI: results
+        CLI->>Files: trajectory + CSV
+    end
+    CLI->>Files: final structure,<br/>parameter file
+    CLI-->>User: summary
+```
+
+---
+
 ## Installation
 
 > Setting up with an AI coding assistant (Claude Code, Cursor, Codex, …)? Point it at [AGENTS.md](AGENTS.md) — it covers the install rules, verification, and repo conventions in one place.
