@@ -14,16 +14,16 @@ Issue templates live under `.github/ISSUE_TEMPLATE/`.
 ```bash
 git clone https://github.com/manuelarcer/mlip-platform.git
 cd mlip-platform
-pip install -e .
+pip install -e ".[dev,neb]"   # dev = pytest + coverage tools; neb = optional asetools
 
-# Install at least one MLIP for integration tests (optional):
-pip install fairchem-core   # UMA — recommended; gated on Hugging Face
-pip install sevenn          # SevenNet
-pip install mace-torch      # MACE
-pip install chgnet          # CHGNet
+# Optionally install ONE MLIP for integration tests. One MLIP per environment —
+# the packages pin incompatible torch/e3nn versions (see docs/adr/0001-per-mlip-envs.md
+# and the recipes in docs/install/README.md):
+pip install mace-torch      # simplest — works immediately, no access request
+mlip doctor                 # verify what the environment can run
 ```
 
-The `mlip`, `optimize`, `md`, `neb`, `autoneb`, `autoneb-results`, and `benchmark` commands all become available after `pip install -e .`. See the [README](README.md) for usage and [docs/PYTHON_API.md](docs/PYTHON_API.md) for the public Python API.
+The `mlip` (including `mlip doctor`), `optimize`, `md`, `neb`, `autoneb`, `autoneb-results`, and `benchmark` commands all become available after `pip install -e .`. See the [README](README.md) for usage and [docs/PYTHON_API.md](docs/PYTHON_API.md) for the public Python API.
 
 ## Running tests
 
@@ -89,10 +89,10 @@ A separate scheduled workflow (`.github/workflows/weekly.yml`) runs broader qual
 
 ## Versioning and releases
 
-Versioning follows [Semantic Versioning](https://semver.org/). The version lives in `setup.py`. To cut a release:
+Versioning follows [Semantic Versioning](https://semver.org/). The version lives in `pyproject.toml`. To cut a release:
 
 1. Move entries from `[Unreleased]` to a new `[X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`.
-2. Bump the `version` string in `setup.py`.
+2. Bump the `version` string in `pyproject.toml`.
 3. Tag the commit `vX.Y.Z`.
 
 There is no automated PyPI release at present.

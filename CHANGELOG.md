@@ -6,6 +6,9 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ### Added
 
+- `mlip doctor`: environment self-check reporting package versions, asetools health (distinguishes the real GitHub package from the unrelated PyPI `asetools`), installed MLIP packages, what `--mlip auto` resolves to, and torch/CUDA status. Exits 0 iff at least one MLIP is installed, so scripts and CI can assert on it. (#31)
+- `AGENTS.md` and `CLAUDE.md`: committed orientation for AI coding assistants and new users — install rules, verification, testing commands, and repo conventions. (#31)
+- CI: `install-smoke.yml` workflow proves the README Quick Start on a clean runner (base install → `[neb]` extra → CPU MACE → `mlip doctor` gate → small relaxation with a finite-energy assertion), weekly and on packaging-file changes. (#31)
 - `optimize batch`: relax a series of structures in one process, loading the MLIP model **only once** and reusing it across every relaxation (avoids the per-run model-load cost). Discovers one input structure per immediate subdirectory of `--parent` (default `--input-name '*.vasp'`; the platform's own `*_final.vasp` outputs are ignored), relaxes each in place, continues past failures, and writes a `batch_summary.csv` into `--parent`. Supports `--skip-existing` to resume a partial batch.
 - `build_calculator()` in `mlip_platform.cli.utils`: builds and returns an ASE calculator without attaching it, so the loaded model can be reused across many structures. `setup_calculator()` is now a thin build-and-attach wrapper around it.
 - `optimize run` / `optimize batch` now also write a fixed-name `CONTCAR` (copy of the final relaxed structure) so a follow-up DFT run managed by asetools can restart from the directory.
@@ -16,6 +19,10 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ### Changed
 
+- **Packaging moved from `setup.py` to `pyproject.toml`** (PEP 621); `setup.py` remains as a compatibility shim. (#32)
+- **asetools is no longer a base dependency.** The bare PyPI name `asetools` resolves to an unrelated Aseprite tool, and the only in-code use is the guarded NEB interpolation sanity check — so it is now an optional extra installed from GitHub: `pip install -e ".[neb]"`. A plain install runs NEB **without** the interpolation distance check (by design); `mlip doctor` reports the state. (#32, #31)
+- CI workflows install `.[dev,neb]` instead of a separate `pip install git+…` asetools step, exercising the same install path users run. (#31)
+- Dependency `typer[all]` → `typer` (the `[all]` extra is empty in modern typer and produced a pip warning on every fresh install). (#31)
 - **Plotting is now opt-in across `optimize`, `md`, and `neb`.** Previously these commands always wrote PNG figures (`optimize` had a `--no-plot` opt-out; `md`/`neb` had no way to disable it). Now no PNG is written unless `--plot` is passed. The CSV data (`*_convergence.csv`, `md_energy.csv`, `neb_convergence.csv`, `neb_data.csv`) is always written, so nothing is lost — figures can be regenerated from it. Motivation: the figure/save is IO that dominates short runs (measured ~3x speedup on frozen-surface site scans). The old `--no-plot` still works as the off side of `--plot/--no-plot`, so existing scripts are unaffected.
 - **Auto-detection order changed to UMA → MACE → SevenNet → CHGNet** (was UMA → SevenNet → MACE → CHGNet). UMA is still preferred when installed, but MACE is now the preferred fallback ahead of SevenNet/CHGNet: UMA is gated on Hugging Face and unusable without an access request, whereas `pip install mace-torch` gives a working model immediately. A fresh environment therefore lands on a usable default.
 - NEB now uses ASE's `improvedtangent` tangent method instead of the older default (`aseneb`), which improves convergence on curved reaction paths.
