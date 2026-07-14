@@ -7,7 +7,7 @@ try:
 except ImportError:
     mace_available = False
 
-from mlip_platform.core.neb import CustomNEB
+from mliprun.core.neb import CustomNEB
 
 @pytest.mark.skipif(not mace_available, reason="MACE not installed")
 def test_neb_run_mace():

@@ -158,6 +158,6 @@ Optional file (only when `--output` is set):
 
 ## Parameter file conventions
 
-`*_params.txt` and `*_parameters.txt` are written by `mlip_platform.core.params_io.write_parameters_file`. Same two-column layout (`{key:<23}{value}`) for every command. The keys include their trailing colon. These files are plain text and intended to be diffed across runs.
+`*_params.txt` and `*_parameters.txt` are written by `mliprun.core.params_io.write_parameters_file`. Same two-column layout (`{key:<23}{value}`) for every command. The keys include their trailing colon. These files are plain text and intended to be diffed across runs.
 
 `endpoint_optimization.txt` (NEB / AutoNEB) is written by `write_endpoint_results` from the same module and has its own structured layout — see [PYTHON_API.md](PYTHON_API.md#parameter-file-io) if you need to consume it programmatically.

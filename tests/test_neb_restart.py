@@ -2,7 +2,7 @@
 import pytest
 from pathlib import Path
 
-from mlip_platform.core.neb import CustomNEB
+from mliprun.core.neb import CustomNEB
 
 
 class TestParseParametersFile:
@@ -105,7 +105,7 @@ class TestLoadFromRestart:
 
 class TestCreateBackupFolder:
     def test_creates_backup(self, tmp_path):
-        from mlip_platform.cli.commands.neb import create_backup_folder
+        from mliprun.cli.commands.neb import create_backup_folder
 
         # Create some dummy files
         (tmp_path / "A2B.traj").touch()

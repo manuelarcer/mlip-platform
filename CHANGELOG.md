@@ -10,7 +10,7 @@ All notable changes to this project are documented here. Format follows [Keep a 
 - `AGENTS.md` and `CLAUDE.md`: committed orientation for AI coding assistants and new users — install rules, verification, testing commands, and repo conventions. (#31)
 - CI: `install-smoke.yml` workflow proves the README Quick Start on a clean runner (base install → `[neb]` extra → CPU MACE → `mlip doctor` gate → small relaxation with a finite-energy assertion), weekly and on packaging-file changes. (#31)
 - `optimize batch`: relax a series of structures in one process, loading the MLIP model **only once** and reusing it across every relaxation (avoids the per-run model-load cost). Discovers one input structure per immediate subdirectory of `--parent` (default `--input-name '*.vasp'`; the platform's own `*_final.vasp` outputs are ignored), relaxes each in place, continues past failures, and writes a `batch_summary.csv` into `--parent`. Supports `--skip-existing` to resume a partial batch.
-- `build_calculator()` in `mlip_platform.cli.utils`: builds and returns an ASE calculator without attaching it, so the loaded model can be reused across many structures. `setup_calculator()` is now a thin build-and-attach wrapper around it.
+- `build_calculator()` in `mliprun.cli.utils`: builds and returns an ASE calculator without attaching it, so the loaded model can be reused across many structures. `setup_calculator()` is now a thin build-and-attach wrapper around it.
 - `optimize run` / `optimize batch` now also write a fixed-name `CONTCAR` (copy of the final relaxed structure) so a follow-up DFT run managed by asetools can restart from the directory.
 - `--plot / --no-plot` flag on `optimize run`, `optimize batch`, `md run`, and `neb run`. Plotting is now **opt-in**: with `--plot` the command writes its PNG figures; without it (the default) only the CSVs are written. Threaded through `run_optimization(plot=...)`, `run_md(plot=...)`, and `CustomNEB.run_neb(plot=...)`.
 - `neb run --device {cpu|cuda}`: run NEB on GPU. Defaults to `cpu` (unlike `optimize`/`md`, which default to `auto`); pass `--device cuda` for GPU runs. The device is recorded in `neb_parameters.txt` and honored on `--restart`.
@@ -19,6 +19,7 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ### Changed
 
+- **Project renamed: `mlip-platform` → `mliprun`.** The GitHub repository is now `manuelarcer/mliprun` (old URLs redirect), the distribution is `mliprun`, and the Python import package is `mliprun` (was `mlip_platform`). CLI commands are unchanged (`mlip`, `optimize`, `md`, `neb`, …). Existing editable installs must be refreshed after pulling: `pip uninstall mlip-platform -y && pip install -e .` — and any personal scripts using `import mlip_platform` need updating to `import mliprun`.
 - **Packaging moved from `setup.py` to `pyproject.toml`** (PEP 621); `setup.py` remains as a compatibility shim. (#32)
 - **asetools is no longer a base dependency.** The bare PyPI name `asetools` resolves to an unrelated Aseprite tool, and the only in-code use is the guarded NEB interpolation sanity check — so it is now an optional extra installed from GitHub: `pip install -e ".[neb]"`. A plain install runs NEB **without** the interpolation distance check (by design); `mlip doctor` reports the state. (#32, #31)
 - CI workflows install `.[dev,neb]` instead of a separate `pip install git+…` asetools step, exercising the same install path users run. (#31)
@@ -121,7 +122,7 @@ Initial public iteration.
 
 The 0.1 series predates this CHANGELOG; entries are reconstructed from the git history. There was no formal 0.1.0 release tag; `setup.py` jumped from project inception to `0.2.0` during the 2026-03-13 refactor.
 
-[Unreleased]: https://github.com/manuelarcer/mlip-platform/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/manuelarcer/mlip-platform/releases/tag/v0.3.0
-[0.2.0]: https://github.com/manuelarcer/mlip-platform/releases/tag/v0.2.0
+[Unreleased]: https://github.com/manuelarcer/mliprun/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.3.0
+[0.2.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.2.0
 [0.1.0]: https://github.com/manuelarcer/mlip-platform/releases/tag/v0.1.0

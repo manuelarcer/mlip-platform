@@ -17,15 +17,15 @@ import types
 
 from typer.testing import CliRunner
 
-from mlip_platform.cli.commands import doctor as doctor_cmd
-from mlip_platform.cli.main import app as main_app
+from mliprun.cli.commands import doctor as doctor_cmd
+from mliprun.cli.main import app as main_app
 
 runner = CliRunner()
 
 # Core (always-installed) distributions the doctor reports on. Anything
 # outside this set is treated as not installed in the mocked environment.
 _CORE_VERSIONS = {
-    "mlip-platform": "0.3.0",
+    "mliprun": "0.3.0",
     "ase": "3.29.0",
 }
 
@@ -45,7 +45,7 @@ class TestDoctorHelp:
         # invoke via the running interpreter, not the `mlip` script on PATH —
         # PATH may hold an older install that predates `doctor`
         result = subprocess.run(
-            [sys.executable, "-m", "mlip_platform.cli.main", "doctor", "--help"],
+            [sys.executable, "-m", "mliprun.cli.main", "doctor", "--help"],
             capture_output=True, text=True,
         )
         assert result.returncode == 0
@@ -146,15 +146,15 @@ class TestDoctorRealEnvironment:
     def test_real_run_exit_code_is_zero_or_one(self):
         result = runner.invoke(main_app, ["doctor"])
         assert result.exit_code in (0, 1)
-        assert "mlip-platform" in result.output
+        assert "mliprun" in result.output
         assert "asetools" in result.output
 
     def test_asetools_status_returns_known_value(self):
         assert doctor_cmd._asetools_status() in ("ok", "wrong-package", "missing")
 
     def test_package_version_known_and_unknown(self):
-        # mlip-platform is installed in every test env (editable install)
-        assert doctor_cmd._package_version("mlip-platform") is not None
+        # mliprun is installed in every test env (editable install)
+        assert doctor_cmd._package_version("mliprun") is not None
         assert doctor_cmd._package_version("no-such-distribution-xyz") is None
 
     def test_torch_info_returns_version_and_cuda_fields(self):

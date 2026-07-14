@@ -23,10 +23,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from golden_inputs import (  # noqa: E402
     GOLDEN_DIR, make_md_atoms, make_neb_pair, make_opt_atoms,
 )
-from mlip_platform.core.md import run_md  # noqa: E402
-from mlip_platform.core.neb import CustomNEB  # noqa: E402
-from mlip_platform.core.optimize import run_optimization  # noqa: E402
-from mlip_platform.core.utils import calc_fmax  # noqa: E402
+from mliprun.core.md import run_md  # noqa: E402
+from mliprun.core.neb import CustomNEB  # noqa: E402
+from mliprun.core.optimize import run_optimization  # noqa: E402
+from mliprun.core.utils import calc_fmax  # noqa: E402
 
 
 def _write(name: str, payload: dict) -> None:

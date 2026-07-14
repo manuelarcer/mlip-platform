@@ -74,10 +74,10 @@ def doctor():
     """Check this environment: MLIP packages, asetools health, torch/CUDA."""
     problems = []
 
-    typer.echo("mlip-platform environment doctor")
+    typer.echo("mliprun environment doctor")
     typer.echo("=" * 32)
     typer.echo(f"Python          {platform.python_version()} ({sys.platform})")
-    for dist in ("mlip-platform", "ase"):
+    for dist in ("mliprun", "ase"):
         typer.echo(f"{dist:<15} {_package_version(dist) or 'not installed'}")
 
     status = _asetools_status()

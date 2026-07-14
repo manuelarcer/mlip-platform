@@ -1,4 +1,4 @@
-"""Tests for mlip_platform.core.md."""
+"""Tests for mliprun.core.md."""
 import pytest
 
 from ase.build import bulk
@@ -7,7 +7,7 @@ from ase.md.verlet import VelocityVerlet
 from ase.md.langevin import Langevin
 from ase.md.nvtberendsen import NVTBerendsen
 
-from mlip_platform.core.md import setup_dynamics, run_md
+from mliprun.core.md import setup_dynamics, run_md
 
 
 class TestSetupDynamics:

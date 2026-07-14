@@ -1,5 +1,5 @@
 from ase.io import read
-from mlip_platform.core.neb import CustomNEB
+from mliprun.core.neb import CustomNEB
 import pytest
 
 try:
@@ -8,7 +8,7 @@ try:
 except ImportError:
     sevenn_available = False
 
-from mlip_platform.core.neb import CustomNEB
+from mliprun.core.neb import CustomNEB
 
 @pytest.mark.skipif(not sevenn_available, reason="SevenNet not installed")
 def test_neb_run_sevenn():

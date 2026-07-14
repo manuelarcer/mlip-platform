@@ -6,7 +6,7 @@ from pathlib import Path
 import typer
 from ase.io import read
 
-from mlip_platform.cli.utils import (
+from mliprun.cli.utils import (
     FAIRCHEM_AVAILABLE,
     MACE_AVAILABLE,
     SEVENN_AVAILABLE,

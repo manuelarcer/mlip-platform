@@ -16,7 +16,7 @@ from ase.md.nvtberendsen import NVTBerendsen
 from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.md.verlet import VelocityVerlet
 
-from mlip_platform.core.utils import GPA_TO_EV_PER_ANG3
+from mliprun.core.utils import GPA_TO_EV_PER_ANG3
 
 logger = logging.getLogger(__name__)
 

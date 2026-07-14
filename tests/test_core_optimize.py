@@ -1,4 +1,4 @@
-"""Tests for mlip_platform.core.optimize."""
+"""Tests for mliprun.core.optimize."""
 import pytest
 import numpy as np
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
-from mlip_platform.core.optimize import run_optimization, OPTIMIZER_MAP
+from mliprun.core.optimize import run_optimization, OPTIMIZER_MAP
 
 
 class TestOptimizationConverges:

@@ -6,8 +6,8 @@ from ase.calculators.emt import EMT
 from ase.io import write
 from typer.testing import CliRunner
 
-from mlip_platform.cli.commands import optimize as opt_cmd
-from mlip_platform.cli.commands.optimize import _find_input_structure, app
+from mliprun.cli.commands import optimize as opt_cmd
+from mliprun.cli.commands.optimize import _find_input_structure, app
 
 runner = CliRunner()
 

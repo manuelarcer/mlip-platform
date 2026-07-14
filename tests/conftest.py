@@ -1,4 +1,4 @@
-"""Shared fixtures and configuration for mlip_platform tests."""
+"""Shared fixtures and configuration for mliprun tests."""
 import pytest
 import numpy as np
 from pathlib import Path

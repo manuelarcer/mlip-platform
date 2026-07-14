@@ -92,7 +92,7 @@ Nose-Hoover requires a recent ASE; the platform raises `ImportError` if it is mi
 **Not exposed on the CLI** but used internally with sensible defaults:
 
 - `pfactor` for NPT MTK: auto-computed as `(ttime * 75 GPa)^2`.
-- `compressibility` for NPT Berendsen: `4.57e-5 GPa⁻¹` (water value). For metals (~1e-6) or ceramics (~1e-7), the Berendsen barostat will still equilibrate but slower / faster than ideal. If you need to tune these, use the Python API (`mlip_platform.core.md.run_md`).
+- `compressibility` for NPT Berendsen: `4.57e-5 GPa⁻¹` (water value). For metals (~1e-6) or ceramics (~1e-7), the Berendsen barostat will still equilibrate but slower / faster than ideal. If you need to tune these, use the Python API (`mliprun.core.md.run_md`).
 
 ---
 

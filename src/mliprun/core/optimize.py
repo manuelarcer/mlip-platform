@@ -9,7 +9,7 @@ from ase.io import write
 from ase.io.trajectory import Trajectory
 from ase.optimize import BFGS, FIRE, LBFGS, BFGSLineSearch, GPMin, MDMin
 
-from mlip_platform.core.utils import calc_fmax
+from mliprun.core.utils import calc_fmax
 
 logger = logging.getLogger(__name__)
 

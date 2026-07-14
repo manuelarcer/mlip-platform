@@ -1,10 +1,10 @@
-"""Tests for mlip_platform.cli.utils."""
+"""Tests for mliprun.cli.utils."""
 import pytest
 from unittest.mock import patch
 
 import typer
 
-from mlip_platform.cli.utils import (
+from mliprun.cli.utils import (
     detect_mlip,
     validate_mlip,
     resolve_mlip,
@@ -17,7 +17,7 @@ from mlip_platform.cli.utils import (
 
 
 class TestDetectMlip:
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", True)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", True)
     def test_returns_string(self):
         # With a backend available, detect_mlip returns a non-empty model tag.
         # Mocked so the result does not depend on what is installed in the env.
@@ -25,40 +25,40 @@ class TestDetectMlip:
         assert isinstance(result, str)
         assert result
 
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", True)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", True)
     def test_prefers_uma(self):
         assert detect_mlip() == "uma-s-1p2"
 
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", True)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mliprun.cli.utils.MACE_AVAILABLE", True)
     def test_falls_back_to_mace(self):
         # Without UMA, MACE is the preferred fallback (it is not gated).
         assert detect_mlip() == "mace"
 
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", True)
-    @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", True)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mliprun.cli.utils.MACE_AVAILABLE", True)
+    @patch("mliprun.cli.utils.SEVENN_AVAILABLE", True)
     def test_mace_preferred_over_sevenn(self):
         # When both MACE and SevenNet are installed, MACE wins (readily usable).
         assert detect_mlip() == "mace"
 
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", True)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mliprun.cli.utils.MACE_AVAILABLE", False)
+    @patch("mliprun.cli.utils.SEVENN_AVAILABLE", True)
     def test_falls_back_to_sevenn(self):
         assert detect_mlip() == "7net-mf-ompa"
 
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", True)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mliprun.cli.utils.SEVENN_AVAILABLE", False)
+    @patch("mliprun.cli.utils.MACE_AVAILABLE", False)
+    @patch("mliprun.cli.utils.CHGNET_AVAILABLE", True)
     def test_falls_back_to_chgnet(self):
         assert detect_mlip() == "chgnet"
 
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", False)
-    @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", False)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mliprun.cli.utils.SEVENN_AVAILABLE", False)
+    @patch("mliprun.cli.utils.MACE_AVAILABLE", False)
+    @patch("mliprun.cli.utils.CHGNET_AVAILABLE", False)
     def test_none_available_raises(self):
         with pytest.raises(typer.Exit):
             detect_mlip()
@@ -72,39 +72,39 @@ class TestValidateMlip:
         with pytest.raises(typer.Exit):
             validate_mlip("nonexistent-model")
 
-    @patch("mlip_platform.cli.utils.MACE_AVAILABLE", False)
+    @patch("mliprun.cli.utils.MACE_AVAILABLE", False)
     def test_mace_unavailable_raises(self):
         with pytest.raises(typer.Exit):
             validate_mlip("mace")
 
-    @patch("mlip_platform.cli.utils.SEVENN_AVAILABLE", False)
+    @patch("mliprun.cli.utils.SEVENN_AVAILABLE", False)
     def test_sevenn_unavailable_raises(self):
         with pytest.raises(typer.Exit):
             validate_mlip("7net-mf-ompa")
 
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", False)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", False)
     def test_uma_unavailable_raises(self):
         with pytest.raises(typer.Exit):
             validate_mlip("uma-s-1p1")
 
-    @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", False)
+    @patch("mliprun.cli.utils.CHGNET_AVAILABLE", False)
     def test_chgnet_unavailable_raises(self):
         with pytest.raises(typer.Exit):
             validate_mlip("chgnet")
 
-    @patch("mlip_platform.cli.utils.CHGNET_AVAILABLE", True)
+    @patch("mliprun.cli.utils.CHGNET_AVAILABLE", True)
     def test_chgnet_available_passes(self):
         validate_mlip("chgnet")  # should not raise
 
 
 class TestResolveMlip:
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", True)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", True)
     def test_auto_resolves(self):
         result = resolve_mlip("auto")
         assert isinstance(result, str)
         assert result != "auto"
 
-    @patch("mlip_platform.cli.utils.FAIRCHEM_AVAILABLE", True)
+    @patch("mliprun.cli.utils.FAIRCHEM_AVAILABLE", True)
     def test_explicit_passes_through(self):
         result = resolve_mlip("uma-s-1p1")
         assert result == "uma-s-1p1"

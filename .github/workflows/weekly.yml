@@ -43,7 +43,7 @@ jobs:
             echo "paths=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          CHANGED=$(git diff --name-only "$BASE"..HEAD -- 'src/mlip_platform/**/*.py' | tr '\n' ',' | sed 's/,$//')
+          CHANGED=$(git diff --name-only "$BASE"..HEAD -- 'src/mliprun/**/*.py' | tr '\n' ',' | sed 's/,$//')
           echo "Changed source modules (7 days): ${CHANGED:-none}" | tee -a summary.md
           echo "paths=$CHANGED" >> "$GITHUB_OUTPUT"
 

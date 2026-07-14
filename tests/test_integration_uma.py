@@ -14,7 +14,7 @@ pytestmark = pytest.mark.uma
 @pytest.fixture
 def uma_atoms(tmp_workdir):
     """Create a Cu bulk structure file and return (atoms, vasp_path)."""
-    from mlip_platform.cli.utils import setup_calculator
+    from mliprun.cli.utils import setup_calculator
 
     atoms = bulk("Cu", "fcc", a=3.6) * (2, 2, 2)
     vasp_path = tmp_workdir / "POSCAR"
@@ -37,7 +37,7 @@ class TestSinglePointUMA:
 
 class TestOptimizationUMA:
     def test_short_optimization(self, uma_atoms, tmp_workdir):
-        from mlip_platform.core.optimize import run_optimization
+        from mliprun.core.optimize import run_optimization
 
         atoms, _ = uma_atoms
         converged = run_optimization(
@@ -50,7 +50,7 @@ class TestOptimizationUMA:
 
 class TestNEBUMA:
     def test_3_images(self, tmp_workdir):
-        from mlip_platform.core.neb import CustomNEB
+        from mliprun.core.neb import CustomNEB
 
         initial = bulk("Cu", "fcc", a=3.6) * (2, 2, 2)
         final = initial.copy()
@@ -68,7 +68,7 @@ class TestNEBUMA:
 
 class TestMDUMA:
     def test_nvt_10_steps(self, uma_atoms, tmp_workdir):
-        from mlip_platform.core.md import run_md
+        from mliprun.core.md import run_md
 
         atoms, _ = uma_atoms
         run_md(

@@ -26,7 +26,7 @@ jobs:
           pip install -e ".[dev,neb]"
 
       - name: Run test suite with coverage
-        run: pytest --cov=mlip_platform --cov-report=xml
+        run: pytest --cov=mliprun --cov-report=xml
 
       - name: Diff coverage gate (>= 90% on changed lines)
         run: |

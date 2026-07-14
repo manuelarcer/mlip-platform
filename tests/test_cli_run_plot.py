@@ -11,10 +11,10 @@ from ase.calculators.emt import EMT
 from ase.io import write
 from typer.testing import CliRunner
 
-from mlip_platform.cli.commands import optimize as opt_cmd
-from mlip_platform.cli.commands import md as md_cmd
-from mlip_platform.cli.commands import neb as neb_cmd
-from mlip_platform.core.neb import CustomNEB
+from mliprun.cli.commands import optimize as opt_cmd
+from mliprun.cli.commands import md as md_cmd
+from mliprun.cli.commands import neb as neb_cmd
+from mliprun.core.neb import CustomNEB
 
 runner = CliRunner()
 

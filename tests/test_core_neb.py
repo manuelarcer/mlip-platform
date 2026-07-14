@@ -1,11 +1,11 @@
-"""Tests for mlip_platform.core.neb using EMT calculator."""
+"""Tests for mliprun.core.neb using EMT calculator."""
 import pytest
 import numpy as np
 
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
-from mlip_platform.core.neb import CustomNEB
+from mliprun.core.neb import CustomNEB
 
 
 def _make_neb_pair():

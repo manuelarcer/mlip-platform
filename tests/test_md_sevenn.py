@@ -1,7 +1,7 @@
 import os
 import pytest
 from ase.io import read
-from mlip_platform.core.md import run_md
+from mliprun.core.md import run_md
 
 
 # Try importing SevenNet

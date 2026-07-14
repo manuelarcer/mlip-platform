@@ -1,12 +1,12 @@
-# Setup Python, MLIP-Platform, and UMA Model (FAIRChem) on Windows
+# Setup Python, mliprun, and UMA Model (FAIRChem) on Windows
 
-This guide walks you through setting up Python, MLIP-Platform, and the UMA Model from FAIRChem on Windows using PowerShell terminal in VSCode.
+This guide walks you through setting up Python, mliprun, and the UMA Model from FAIRChem on Windows using PowerShell terminal in VSCode.
 
 ## Table of Contents
 
 - [Install Python](#install-python)
 - [Setup a Virtual Environment](#setup-a-virtual-environment)
-- [Setup MLIP-Platform](#setup-mlip-platform)
+- [Setup mliprun](#setup-mliprun)
 - [Setup UMA Model (FAIRChem)](#setup-uma-model-fairchem)
 
 ---
@@ -91,11 +91,11 @@ Now your isolated environment is ready to install the required packages.
 
 ---
 
-## Setup MLIP-Platform
+## Setup mliprun
 
 ### 1. Install Git
 
-Git is required to clone the MLIP-Platform repository.
+Git is required to clone the mliprun repository.
 
 **Installation steps:**
 
@@ -125,7 +125,7 @@ git --version
 git version 2.51.0.windows.1
 ```
 
-### 2. Clone the MLIP-Platform repository
+### 2. Clone the mliprun repository
 
 Before cloning, make sure you're in your project directory and have activated the virtual environment:
 
@@ -137,13 +137,13 @@ cd C:\Users\YourUsername\Projects\MLIP
 Clone the repository:
 
 ```powershell
-git clone https://github.com/manuelarcer/mlip-platform.git
-cd mlip-platform
+git clone https://github.com/manuelarcer/mliprun.git
+cd mliprun
 ```
 
 **Expected output:** You should see progress messages showing the cloning process:
 ```
-Cloning into 'mlip-platform'...
+Cloning into 'mliprun'...
 remote: Enumerating objects: 836, done.
 remote: Counting objects: 100% (157/157), done.
 remote: Compressing objects: 100% (90/90), done.
@@ -154,12 +154,12 @@ Resolving deltas: 100% (331/331), done.
 
 After changing directory, your prompt should show:
 ```
-(uma) PS C:\Users\YourUsername\Projects\MLIP\mlip-platform>
+(uma) PS C:\Users\YourUsername\Projects\MLIP\mliprun>
 ```
 
-### 3. Install mlip-platform package
+### 3. Install mliprun package
 
-While in the `mlip-platform` directory, install the package in editable mode:
+While in the `mliprun` directory, install the package in editable mode:
 
 ```powershell
 pip install -e .
@@ -171,9 +171,9 @@ pip install -e .
 
 **Expected output (last few lines):**
 ```
-Successfully built mlip-platform
+Successfully built mliprun
 Installing collected packages: typing-extensions, click, olefile, fonttools, cycler, colorama, scipy, ...
-Successfully installed ase-3.26.0 click-8.1.8 ... mlip-platform-0.2.0
+Successfully installed ase-3.26.0 click-8.1.8 ... mliprun-0.2.0
 ```
 
 **Verify installation:** Each of the following commands should work whenever the 'uma' virtual environment is active:
@@ -310,11 +310,11 @@ For more details, see: [Hugging Face Hub Quick Start](https://huggingface.co/doc
 
 Your environment is now fully configured with:
 - ✓ Python virtual environment ('uma')
-- ✓ MLIP-Platform installed and `mlip` CLI available
+- ✓ mliprun installed and `mlip` CLI available
 - ✓ FAIRChem-Core installed with UMA model access
 
 **Next steps:**
-- Keep the 'uma' virtual environment activated when working with MLIP-Platform
+- Keep the 'uma' virtual environment activated when working with mliprun
 - Use `mlip --help` to explore the full command namespace, or call any subcommand directly (e.g. `optimize --help`, `md --help`)
 - Refer to the [main README](../README.md) for usage examples and documentation
 - For UMA-specific examples, see [UMA Models Usage Guide](UMA_USAGE_GUIDE.md)

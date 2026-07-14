@@ -1,6 +1,6 @@
 # Tests
 
-Pytest suite for `mlip_platform`. Most unit tests run on ASE's built-in EMT calculator and need no MLIP installed; integration tests against UMA, MACE, and SevenNet are gated behind markers and auto-skip when the corresponding package is missing.
+Pytest suite for `mliprun`. Most unit tests run on ASE's built-in EMT calculator and need no MLIP installed; integration tests against UMA, MACE, and SevenNet are gated behind markers and auto-skip when the corresponding package is missing.
 
 ## Layout
 
