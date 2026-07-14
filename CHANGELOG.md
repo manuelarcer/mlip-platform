@@ -4,6 +4,10 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.4.0] - 2026-07-14
+
 ### Added
 
 - `mlip doctor`: environment self-check reporting package versions, asetools health (distinguishes the real GitHub package from the unrelated PyPI `asetools`), installed MLIP packages, what `--mlip auto` resolves to, and torch/CUDA status. Exits 0 iff at least one MLIP is installed, so scripts and CI can assert on it. (#31)
@@ -122,7 +126,8 @@ Initial public iteration.
 
 The 0.1 series predates this CHANGELOG; entries are reconstructed from the git history. There was no formal 0.1.0 release tag; `setup.py` jumped from project inception to `0.2.0` during the 2026-03-13 refactor.
 
-[Unreleased]: https://github.com/manuelarcer/mliprun/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/manuelarcer/mliprun/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.4.0
 [0.3.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.3.0
 [0.2.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.2.0
-[0.1.0]: https://github.com/manuelarcer/mlip-platform/releases/tag/v0.1.0
+[0.1.0]: https://github.com/manuelarcer/mliprun/releases/tag/v0.1.0

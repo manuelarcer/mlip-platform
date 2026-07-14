@@ -419,7 +419,7 @@ For a complete reference of every file each command writes — filename, format,
 
 ## Changelog
 
-Release notes are tracked in [CHANGELOG.md](CHANGELOG.md). Current version: **0.3.0** (`pyproject.toml`).
+Release notes are tracked in [CHANGELOG.md](CHANGELOG.md). Current version: **0.4.0** (`pyproject.toml`).
 
 ## Contributing
 
