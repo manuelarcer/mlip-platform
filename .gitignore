@@ -40,6 +40,11 @@ opt_final.vasp
 tests/fixtures/structures/**/[0-9][0-9]/
 
 
+# Virtual environments (README Quick Start creates .venv in the repo)
+.venv/
+venv/
+.venv-*/
+
 # Packaging and build artifacts
 *.egg-info/
 build/

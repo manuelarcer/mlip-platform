@@ -14,6 +14,7 @@ Issue templates live under `.github/ISSUE_TEMPLATE/`.
 ```bash
 git clone https://github.com/manuelarcer/mliprun.git
 cd mliprun
+python3 -m venv .venv && source .venv/bin/activate   # or a conda env — never system Python
 pip install -e ".[dev,neb]"   # dev = pytest + coverage tools; neb = optional asetools
 
 # Optionally install ONE MLIP for integration tests. One MLIP per environment —

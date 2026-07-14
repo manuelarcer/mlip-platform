@@ -26,11 +26,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Base install (exact README Quick Start path)
+      - name: Base install (exact README Quick Start path, venv included)
         run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
           python -m pip install --upgrade pip
           pip install -e .
           mlip --help
+          # every later step uses the venv's binaries, like an activated shell
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: "[neb] extra pulls the real asetools (not the PyPI impostor)"
         run: |
