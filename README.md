@@ -1,5 +1,8 @@
 # MLIP Platform
 
+[![Tests](https://github.com/manuelarcer/mlip-platform/actions/workflows/tests.yml/badge.svg)](https://github.com/manuelarcer/mlip-platform/actions/workflows/tests.yml)
+[![Fresh-install smoke test](https://github.com/manuelarcer/mlip-platform/actions/workflows/install-smoke.yml/badge.svg)](https://github.com/manuelarcer/mlip-platform/actions/workflows/install-smoke.yml)
+
 A modular CLI toolkit for evaluating Machine Learning Interatomic Potentials (MLIPs) via:
 
 - **Geometry Optimization**
@@ -8,7 +11,7 @@ A modular CLI toolkit for evaluating Machine Learning Interatomic Potentials (ML
 - **AutoNEB** with dynamic image insertion
 - **Benchmarking**
 
-Supports **UMA** (FAIRChem), **SevenNet** (7net), and **MACE** models with automatic detection and streamlined CLI using [Typer](https://typer.tiangolo.com/).
+Supports **UMA** (FAIRChem), **MACE**, **SevenNet** (7net), and **CHGNet** models with automatic detection and streamlined CLI using [Typer](https://typer.tiangolo.com/).
 
 ---
 
@@ -25,12 +28,15 @@ Supports **UMA** (FAIRChem), **SevenNet** (7net), and **MACE** models with autom
 - NEB with IDPP interpolation, restart support, and highly-constrained mode
 - AutoNEB with dynamic image insertion
 - CSV output for all simulations; PNG plots are opt-in via `--plot` (CSVs are always written)
+- `mlip doctor` environment self-check (installed MLIPs, asetools health, torch/CUDA)
 - Lazy imports for fast CLI startup
 - Pytest-based test suite with EMT-based unit tests and MLIP integration tests
 
 ---
 
 ## Installation
+
+> Setting up with an AI coding assistant (Claude Code, Cursor, Codex, …)? Point it at [AGENTS.md](AGENTS.md) — it covers the install rules, verification, and repo conventions in one place.
 
 ### Quick Start
 
@@ -308,6 +314,11 @@ A model that fails to load is recorded in the JSON summary with the exception me
 
 ## Testing
 
+Install the test dependencies first (`[dev]` brings pytest and the coverage tools; `[neb]` the optional asetools):
+```bash
+pip install -e ".[dev,neb]"
+```
+
 Run all unit tests (no MLIP required):
 ```bash
 pytest -m "not uma and not mace and not sevenn"
@@ -356,19 +367,19 @@ For a complete reference of every file each command writes — filename, format,
 
 - CLI powered by [`typer`](https://typer.tiangolo.com/)
 - Entry points defined in [pyproject.toml](pyproject.toml) (`[project.scripts]`):
-  ```python
-  console_scripts = [
-      "md = mlip_platform.cli.commands.md:app",
-      "neb = mlip_platform.cli.commands.neb:app",
-      "optimize = mlip_platform.cli.commands.optimize:app",
-      "autoneb = mlip_platform.cli.commands.autoneb:app",
-      "autoneb-results = mlip_platform.cli.commands.autoneb_results:app",
-      "benchmark = mlip_platform.cli.commands.benchmark:app",
-  ]
+  ```toml
+  [project.scripts]
+  mlip = "mlip_platform.cli.main:app"
+  md = "mlip_platform.cli.commands.md:app"
+  neb = "mlip_platform.cli.commands.neb:app"
+  autoneb = "mlip_platform.cli.commands.autoneb:app"
+  autoneb-results = "mlip_platform.cli.commands.autoneb_results:app"
+  benchmark = "mlip_platform.cli.commands.benchmark:app"
+  optimize = "mlip_platform.cli.commands.optimize:app"
   ```
 - Lazy imports for fast CLI startup (no heavy dependencies loaded until needed)
-- All simulation outputs saved in same directory as input structure
-- Automatic plot generation for all trajectory-based calculations
+- Output locations: `optimize`/`md` write next to the input structure; `neb`/`autoneb` write into the current working directory (see [OUTPUTS.md](docs/OUTPUTS.md))
+- Plots are opt-in via `--plot`; CSV data is always written
 - Shared utilities in `core/utils.py` (fmax calculation, unit conversions)
 - Parameter I/O in `core/params_io.py` (reduces duplication across commands)
 - Optional integration with [asetools](https://github.com/manuelarcer/asetools) for NEB interpolation sanity checks (`pip install -e ".[neb]"`; the import in `core/neb.py` is guarded, so the platform runs without it)
@@ -377,7 +388,7 @@ For a complete reference of every file each command writes — filename, format,
 
 ## Changelog
 
-Release notes are tracked in [CHANGELOG.md](CHANGELOG.md). Current version: **0.3.0** (`setup.py`).
+Release notes are tracked in [CHANGELOG.md](CHANGELOG.md). Current version: **0.3.0** (`pyproject.toml`).
 
 ## Contributing
 

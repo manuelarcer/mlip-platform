@@ -187,6 +187,7 @@ Successfully installed ase-3.26.0 click-8.1.8 ... mlip-platform-0.2.0
 | `autoneb --help` | AutoNEB with dynamic image insertion |
 | `autoneb-results --help` | Extract / plot results from a completed AutoNEB run |
 | `benchmark --help` | MACE / SevenNet timing benchmarks |
+| `mlip doctor` | Environment self-check: installed MLIPs, torch/CUDA, asetools health. Exits with an error until an MLIP is installed (next section) — that is expected at this stage. |
 
 `mlip <name>` is equivalent to running `<name>` directly — for example, `mlip md run --structure POSCAR` and `md run --structure POSCAR` do the same thing. Use whichever you prefer.
 
