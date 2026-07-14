@@ -69,7 +69,15 @@ git clone https://github.com/manuelarcer/mliprun.git
 cd mliprun
 ```
 
-2. **Install the package**
+2. **Create and activate a virtual environment** (don't skip this)
+```bash
+python3 -m venv .venv
+source .venv/bin/activate        # Windows PowerShell: .venv\Scripts\activate
+```
+
+Installing into the system Python fails outright on modern Linux/macOS (`error: externally-managed-environment`) and, where it doesn't, pollutes system packages. A dedicated environment is also how this project isolates MLIPs from each other (one MLIP per environment — [ADR 0001](docs/adr/0001-per-mlip-envs.md)). Prefer conda, or setting up on an HPC/GPU machine? Use the per-MLIP recipes in [docs/install/](docs/install/README.md) instead — they include tested conda and venv blocks.
+
+3. **Install the package** (into the activated environment)
 ```bash
 pip install -e .
 ```
@@ -81,7 +89,7 @@ pip install -e ".[neb]"
 
 > **Warning**: Never `pip install asetools` directly — the package named `asetools` on PyPI is an unrelated project (Aseprite tooling). The `[neb]` extra pulls the correct one from GitHub. If the wrong one is already installed: `pip uninstall asetools`, then `pip install -e ".[neb]"`.
 
-3. **Install an MLIP model** (each in its own environment — see [install recipes](docs/install/README.md))
+4. **Install an MLIP model** (each in its own environment — see [install recipes](docs/install/README.md))
 
 ```bash
 # MACE - readily usable, no access request (good default for a fresh setup)
@@ -97,7 +105,7 @@ pip install sevenn
 pip install chgnet
 ```
 
-4. **Verify the install**
+5. **Verify the install**
 ```bash
 mlip doctor
 ```

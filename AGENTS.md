@@ -17,6 +17,8 @@ vocabulary (MLIP tag vs package vs env) — read it before discussing installs.
 ```bash
 git clone https://github.com/manuelarcer/mliprun.git
 cd mliprun
+python3 -m venv .venv && source .venv/bin/activate   # REQUIRED: bare pip fails
+                          # on PEP 668 (externally-managed) system Pythons
 pip install -e .          # base install: CLI + ASE, no MLIP yet
 pip install mace-torch    # simplest working MLIP (no access request needed)
 mlip doctor               # verify: exits 0 when the env is usable
