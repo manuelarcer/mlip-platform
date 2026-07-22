@@ -2,6 +2,7 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,6 +18,7 @@ from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
 from ase.md.verlet import VelocityVerlet
 
 from mliprun.core.utils import GPA_TO_EV_PER_ANG3
+from mliprun.core.run_record import RunContext, RunRecord, collect_provenance
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +162,54 @@ def setup_dynamics(
         raise ValueError(f"Unknown ensemble: {ensemble}. Use 'nve', 'nvt', or 'npt'")
 
 
+def _md_statistics(df, n_atoms: int) -> dict:
+    """Raw, assumption-free summary of one MD segment.
+
+    Deliberately excludes any equilibration-window detection: choosing a
+    production region is a methodological decision, and MD samples are
+    autocorrelated, so a naive standard-error criterion would truncate too
+    early and understate the uncertainty. Decile block means are provided so
+    equilibration can be judged by eye without reopening the CSV.
+    """
+    if df.empty:
+        return {"n_samples": 0}
+
+    total = df["total_energy(eV)"]
+    stats = {
+        "n_samples": int(len(df)),
+        "mean_temperature_K": float(df["temperature(K)"].mean()),
+        "std_temperature_K": float(df["temperature(K)"].std(ddof=1)) if len(df) > 1 else 0.0,
+        "mean_total_energy_eV": float(total.mean()),
+        "std_total_energy_eV": float(total.std(ddof=1)) if len(df) > 1 else 0.0,
+        "mean_potential_energy_eV": float(df["potential_energy(eV)"].mean()),
+        "std_potential_energy_eV": float(df["potential_energy(eV)"].std(ddof=1)) if len(df) > 1 else 0.0,
+    }
+
+    # Drift per atom per ps: the number that says whether an NVE run is
+    # trustworthy. Time is logged in fs.
+    span_fs = float(df["time(fs)"].iloc[-1] - df["time(fs)"].iloc[0])
+    if span_fs > 0 and n_atoms > 0:
+        drift = float(total.iloc[-1] - total.iloc[0])
+        stats["total_energy_drift_eV_per_atom_per_ps"] = (
+            drift / n_atoms / (span_fs / 1000.0)
+        )
+    else:
+        stats["total_energy_drift_eV_per_atom_per_ps"] = 0.0
+
+    # Ten equal blocks over the segment, so equilibration is eyeballable.
+    n = len(df)
+    stats["decile_mean_total_energy_eV"] = [
+        float(total.iloc[(i * n) // 10:((i + 1) * n) // 10].mean())
+        if ((i + 1) * n) // 10 > (i * n) // 10 else float(total.iloc[-1])
+        for i in range(10)
+    ]
+
+    if "pressure(GPa)" in df:
+        stats["mean_pressure_GPa"] = float(df["pressure(GPa)"].mean())
+        stats["mean_volume_A3"] = float(df["volume(A^3)"].mean())
+    return stats
+
+
 def run_md(
     atoms,
     ensemble: str = "nvt",
@@ -183,6 +233,9 @@ def run_md(
     resume: bool = False,
     csv_flush_every: int = 100,
     plot: bool = False,
+    run_context: Optional[RunContext] = None,
+    device_requested: str = "auto",
+    device_resolved: str = "auto",
 ) -> None:
     """Run molecular dynamics simulation.
 
@@ -212,6 +265,14 @@ def run_md(
         If True, write the md_energy/md_temperature (and NPT md_pressure/
         md_volume) PNGs. Defaults to False -- plotting is opt-in; md_energy.csv
         is always written and can be plotted later.
+    run_context : RunContext, optional
+        Declares the command, batch identity, and where each parameter value
+        came from. When omitted the record still gets written, with every
+        parameter tagged ``unspecified``.
+    device_requested : str
+        The device as asked for (e.g. ``'auto'``), recorded for provenance.
+    device_resolved : str
+        The device actually used (e.g. ``'cuda'``).
 
     (Other parameters as in :func:`setup_dynamics`.)
     """
@@ -237,13 +298,36 @@ def run_md(
         log_data["volume(A^3)"] = []
 
     prior_steps = 0
+    n_prior_rows = 0
     if resume:
         prior_df = pd.read_csv(csv_file)
+        n_prior_rows = len(prior_df)
         for col in log_data:
             if col in prior_df.columns:
                 log_data[col].extend(prior_df[col].tolist())
         prior_steps = int(prior_df["step"].iloc[-1]) if len(prior_df) else 0
         logger.info("Resuming MD from step %d (prior frames: %d)", prior_steps, len(prior_df))
+
+    record = RunRecord.begin(
+        output_path,
+        command="md",
+        stage_kind="md-resume" if resume else "md",
+        parameters={
+            "ensemble": ensemble, "steps": steps, "temperature": temperature,
+            "pressure": pressure, "timestep": timestep,
+            "thermostat": thermostat, "barostat": barostat,
+            "friction": friction, "ttime": ttime, "taut": taut, "taup": taup,
+            "log_interval": log_interval, "traj_interval": traj_interval,
+        },
+        inputs={"n_atoms": len(atoms), "formula": atoms.get_chemical_formula()},
+        provenance=collect_provenance(
+            mlip_model=model_name,
+            device_requested=device_requested,
+            device_resolved=device_resolved,
+        ),
+        run_context=run_context,
+        append=resume,
+    )
 
     dyn = setup_dynamics(
         atoms, ensemble=ensemble, thermostat=thermostat, barostat=barostat,
@@ -309,11 +393,26 @@ def run_md(
             flush_counter[0] = 0
 
     dyn.attach(log_properties, interval=log_interval)
-    dyn.run(steps)
+
+    try:
+        dyn.run(steps)
+    except Exception as exc:
+        traj_writer.close()
+        _flush_csv()
+        record.complete(status="failed", results={"error": str(exc)})
+        raise
     traj_writer.close()
     _flush_csv()  # final tail of buffered rows
 
     df = pd.DataFrame(log_data)
+
+    # Statistics describe THIS segment only: on resume, log_data was seeded
+    # with the prior run's rows, so df holds the whole history.
+    record.complete(
+        status="converged",
+        steps=int(dyn.get_number_of_steps()),
+        results=_md_statistics(df.iloc[n_prior_rows:], len(atoms)),
+    )
 
     # Plotting is opt-in. md_energy.csv is already written above, so returning
     # here just skips the PNGs (which are IO that can dominate short runs).

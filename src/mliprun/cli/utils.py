@@ -5,6 +5,8 @@ from pathlib import Path
 
 import typer
 
+from mliprun.core.utils import resolve_device as _resolve_device
+
 
 # ---------------------------------------------------------------------------
 # CLI help strings (single source of truth — imported by every command)
@@ -360,22 +362,6 @@ def _ensure_mace_foundation_checkpoint(tag: str) -> str:
     return target
 
 
-def _resolve_device(device: str) -> str:
-    """Resolve ``"auto"`` to ``"cuda"`` if a CUDA device is present, else ``"cpu"``.
-
-    A passed-through ``"cuda"`` or ``"cpu"`` is returned unchanged.
-    """
-    if device != "auto":
-        return device
-    try:
-        import torch
-        if torch.cuda.is_available():
-            return "cuda"
-    except ImportError:
-        pass
-    return "cpu"
-
-
 def build_calculator(mlip: str, uma_task: str = "omat",
                      device: str = "auto", mace_head: str = "omat_pbe"):
     """Build and return an ASE calculator for the given MLIP choice.
@@ -464,3 +450,50 @@ def setup_calculator(atoms, mlip: str, uma_task: str = "omat",
     atoms.calc = build_calculator(mlip, uma_task, device=device,
                                   mace_head=mace_head)
     return atoms
+
+
+# ---------------------------------------------------------------------------
+# Parameter provenance (for the run record)
+# ---------------------------------------------------------------------------
+
+#: Click's provenance vocabulary -> the record's, keyed by the ParameterSource
+#: enum member NAME (a plain string) rather than the member object. Typer >=0.16
+#: vendors its own copy of click (``typer._click``), so a command's ``ctx`` yields
+#: ``typer._click.core.ParameterSource`` members -- a DIFFERENT enum class than
+#: top-level ``click.core.ParameterSource``, which never compares or hashes equal
+#: to it. Matching on ``.name`` ("COMMANDLINE", "DEFAULT", ...) is identical across
+#: both and survives future click/typer splits. DEFAULT_MAP means a config file
+#: supplied the value; we report it as "user" because a human wrote it.
+_SOURCE_LABELS = {
+    "COMMANDLINE": "user",
+    "ENVIRONMENT": "env",
+    "PROMPT": "prompt",
+    "DEFAULT": "default",
+    "DEFAULT_MAP": "user",
+}
+
+
+def param_sources_from_ctx(ctx) -> dict:
+    """Map each CLI parameter name to where its value came from.
+
+    Returns an empty dict when no context is available, which the record
+    module then reports as ``unspecified`` rather than guessing.
+    """
+    if ctx is None:
+        return {}
+    sources = {}
+    for name in getattr(ctx, "params", {}):
+        try:
+            src = ctx.get_parameter_source(name)
+        except Exception:  # noqa: BLE001 -- provenance is best-effort
+            continue
+        # Match on the enum member's NAME, not the member object: typer vendors
+        # its own click, so ctx yields typer._click ParameterSource members that
+        # do not hash-equal the top-level click enum. ``.name`` is identical
+        # across both; None guards a missing source or an unexpected return.
+        key = getattr(src, "name", None)
+        label = _SOURCE_LABELS.get(key)
+        if label is None:
+            continue
+        sources[name] = label
+    return sources

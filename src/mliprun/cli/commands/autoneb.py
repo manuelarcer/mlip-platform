@@ -7,13 +7,15 @@ from ase.optimize import FIRE
 
 from mliprun.core.neb import CustomNEB
 from mliprun.core.params_io import write_parameters_file, write_endpoint_results
-from mliprun.cli.utils import MACE_HEAD_HELP, MLIP_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
+from mliprun.core.run_record import RunContext
+from mliprun.cli.utils import MACE_HEAD_HELP, MLIP_HELP, UMA_TASK_HELP, param_sources_from_ctx, parse_relax_atoms, resolve_mlip
 
 app = typer.Typer()
 
 
 @app.command()
 def run(
+    ctx: typer.Context,
     initial: Path = typer.Option(..., prompt=True, help="Initial structure file (.vasp)"),
     final: Path = typer.Option(..., prompt=True, help="Final structure file (.vasp)"),
     n_max: int = typer.Option(9, help="Maximum number of images (including endpoints)"),
@@ -126,11 +128,16 @@ def run(
         write_endpoint_results(output_dir / "endpoint_optimization.txt", endpoint_results)
 
     # Run AutoNEB
+    run_context = RunContext(
+        command="autoneb",
+        mode="one-off",
+        param_sources=param_sources_from_ctx(ctx),
+    )
     neb.run_autoneb(
         n_simul=n_simul, n_max=n_max, k=k, climb=climb,
         optimizer=FIRE, space_energy_ratio=space_energy_ratio,
         interpolate_method=interpolate_method, maxsteps=maxsteps,
-        prefix=prefix,
+        prefix=prefix, run_context=run_context,
     )
 
     typer.echo(f"\nAutoNEB output files:")

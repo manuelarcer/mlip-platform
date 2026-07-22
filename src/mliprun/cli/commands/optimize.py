@@ -1,18 +1,22 @@
 import csv
+import sys
 import time
 import traceback
 import typer
 from pathlib import Path
 from ase.io import read
 from mliprun.core.optimize import run_optimization, OPTIMIZER_MAP
+from mliprun.core.run_record import BatchInfo, RunContext, new_batch_id
 from mliprun.cli.utils import (
     DEVICE_HELP,
     MACE_HEAD_HELP,
     MLIP_HELP,
     PLOT_HELP,
     UMA_TASK_HELP,
+    _resolve_device,
     build_calculator,
     detect_mlip,
+    param_sources_from_ctx,
     setup_calculator,
     validate_mlip,
 )
@@ -45,6 +49,7 @@ def _find_input_structure(subdir: Path, pattern: str) -> Path:
 
 @app.command()
 def run(
+    ctx: typer.Context,
     structure: Path = typer.Option(..., prompt=True, help="Structure file (.vasp)"),
     mlip: str = typer.Option("auto", help=MLIP_HELP),
     uma_task: str = typer.Option("omat", help=UMA_TASK_HELP),
@@ -106,6 +111,16 @@ def run(
     typer.echo(f"   max_steps = {max_steps}")
     typer.echo(f"   Output dir: {output_dir.resolve()}\n")
 
+    run_context = RunContext(
+        command="optimize",
+        mode="one-off",
+        param_sources=param_sources_from_ctx(ctx),
+    )
+    run_context.extra_inputs = {
+        "structure": structure.name,
+        "structure_abspath": str(structure.resolve()),
+    }
+
     converged = run_optimization(
         atoms=atoms,
         optimizer=optimizer,
@@ -118,26 +133,15 @@ def run(
         verbose=verbose,
         relax_cell=relax_cell,
         plot=plot,
+        run_context=run_context,
+        device_requested=device,
+        device_resolved=_resolve_device(device),
     )
 
     # Save parameters
-    param_file = output_dir / "opt_params.txt"
-    with open(param_file, "w", encoding="utf-8") as f:
-        f.write("Geometry Optimization Parameters\n")
-        f.write("=================================\n")
-        f.write(f"MLIP model:        {mlip}\n")
-        if mlip.startswith("uma-"):
-            f.write(f"UMA task:          {uma_task}\n")
-        if mlip.startswith("mace-mh-"):
-            f.write(f"MACE head:         {mace_head}\n")
-        f.write(f"Device:            {device}\n")
-        f.write(f"Relax cell:        {relax_cell}\n")
-        f.write(f"Structure:         {structure.name}\n")
-        f.write(f"Optimizer:         {optimizer.upper()}\n")
-        f.write(f"fmax (eV/Å):       {fmax}\n")
-        f.write(f"Max steps:         {max_steps}\n")
-        f.write(f"Converged:         {converged}\n")
-        f.write(f"Output dir:        {output_dir.resolve()}\n")
+    _write_params(output_dir / "opt_params.txt", mlip, uma_task, mace_head,
+                  device, relax_cell, structure.name, optimizer, fmax,
+                  max_steps, converged, output_dir)
 
     # Print output summary
     typer.echo("\n✅ Optimization complete. Output files:")
@@ -166,6 +170,7 @@ def run(
 
 @app.command()
 def batch(
+    ctx: typer.Context,
     parent: Path = typer.Option(..., prompt=True,
         help="Parent directory; each immediate subdirectory holds one input structure."),
     input_name: str = typer.Option("*.vasp", "--input-name",
@@ -223,6 +228,14 @@ def batch(
         typer.echo(f"❌ No subdirectories found in {parent.resolve()}")
         raise typer.Exit(1)
 
+    batch_info = BatchInfo(
+        batch_id=new_batch_id(),
+        driver="mliprun optimize batch",
+        argv=list(sys.argv),
+        root=str(parent.resolve()),
+    )
+    batch_sources = param_sources_from_ctx(ctx)
+
     # Build the calculator ONCE and reuse it for every structure. This is the
     # whole point of the batch command: the model load happens a single time.
     typer.echo(f"⚙️  Loading {mlip} calculator once (device={device})...")
@@ -258,6 +271,18 @@ def batch(
         try:
             atoms = read(structure)
             atoms.calc = calc  # reuse the single loaded model
+
+            run_context = RunContext(
+                command="optimize",
+                mode="batch",
+                batch=batch_info,
+                param_sources=batch_sources,
+            )
+            run_context.extra_inputs = {
+                "structure": structure.name,
+                "structure_abspath": str(structure.resolve()),
+            }
+
             converged = run_optimization(
                 atoms=atoms,
                 optimizer=optimizer,
@@ -270,6 +295,9 @@ def batch(
                 verbose=verbose,
                 relax_cell=relax_cell,
                 plot=plot,
+                run_context=run_context,
+                device_requested=device,
+                device_resolved=_resolve_device(device),
             )
             walltime = time.perf_counter() - t0
             energy = atoms.get_potential_energy()
