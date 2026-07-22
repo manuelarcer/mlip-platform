@@ -164,6 +164,78 @@ class TestParamSourcesFromCtx:
 
         assert param_sources_from_ctx(None) == {}
 
+    def test_unrecognized_source_is_skipped_not_labeled_unspecified(self):
+        """An out-of-vocabulary ParameterSource must SKIP the key, not fall
+        back to a literal "unspecified" -- that label is the record module's
+        own default for keys this function never emits (see
+        run_record.py:251-252), and this function producing it directly would
+        be a latent trap if a future Click version adds a 6th source.
+        """
+        from mliprun.cli.utils import param_sources_from_ctx
+
+        class FakeCtx:
+            """Duck-types the two attributes param_sources_from_ctx uses;
+            not a real click.Context, deliberately."""
+            params = {"x": 1}
+
+            def get_parameter_source(self, name):
+                return "not-a-real-parameter-source"
+
+        result = param_sources_from_ctx(FakeCtx())
+        assert "x" not in result
+        assert result == {}
+
+    def test_source_labels_cover_every_current_parameter_source_member(self):
+        """Belt-and-suspenders: confirms the fallback in the previous test
+        is exercising a genuinely out-of-vocabulary value, not one that
+        happens to already be missing from _SOURCE_LABELS today."""
+        from click.core import ParameterSource
+        from mliprun.cli.utils import _SOURCE_LABELS
+
+        for member in ParameterSource:
+            assert member in _SOURCE_LABELS, f"{member} has no record-vocabulary label"
+
+    def test_maps_default_map_env_and_prompt_sources(self):
+        """Drives all three untested mappings end-to-end through the public
+        Typer/Click path in one invocation: DEFAULT_MAP (config-file-style
+        value), ENVIRONMENT (envvar-sourced), and PROMPT (interactively
+        supplied)."""
+        import typer
+        from typer.testing import CliRunner
+
+        from mliprun.cli.utils import param_sources_from_ctx
+
+        seen = {}
+        app = typer.Typer()
+
+        @app.command()
+        def go(ctx: typer.Context,
+               fmax: float = typer.Option(0.05),
+               envval: float = typer.Option(0.1, envvar="TEST_ENVVAL"),
+               name: str = typer.Option(..., prompt=True)):
+            seen.update(param_sources_from_ctx(ctx))
+
+        result = CliRunner().invoke(
+            app, [],
+            default_map={"fmax": 0.09},
+            env={"TEST_ENVVAL": "2.5"},
+            input="bob\n",
+        )
+        assert result.exit_code == 0, result.output
+        assert seen["fmax"] == "user"
+        assert seen["envval"] == "env"
+        assert seen["name"] == "prompt"
+
+    def test_source_labels_dict_values_directly(self):
+        """Direct check of the mapping table itself, per the review's minimum
+        bar, in addition to the end-to-end test above."""
+        from click.core import ParameterSource
+        from mliprun.cli.utils import _SOURCE_LABELS
+
+        assert _SOURCE_LABELS[ParameterSource.DEFAULT_MAP] == "user"
+        assert _SOURCE_LABELS[ParameterSource.ENVIRONMENT] == "env"
+        assert _SOURCE_LABELS[ParameterSource.PROMPT] == "prompt"
+
 
 class TestResolveDeviceRelocation:
     def test_explicit_device_passes_through_from_core(self):

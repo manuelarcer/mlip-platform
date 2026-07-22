@@ -482,6 +482,10 @@ def param_sources_from_ctx(ctx) -> dict:
             src = ctx.get_parameter_source(name)
         except Exception:  # noqa: BLE001 -- provenance is best-effort
             continue
-        if src is not None:
-            sources[name] = _SOURCE_LABELS.get(src, "unspecified")
+        if src is None:
+            continue
+        label = _SOURCE_LABELS.get(src)
+        if label is None:
+            continue
+        sources[name] = label
     return sources
