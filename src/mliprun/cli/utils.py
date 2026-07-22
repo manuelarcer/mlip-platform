@@ -4,6 +4,9 @@ from importlib.metadata import distribution, PackageNotFoundError
 from pathlib import Path
 
 import typer
+from click.core import ParameterSource
+
+from mliprun.core.utils import resolve_device as _resolve_device
 
 
 # ---------------------------------------------------------------------------
@@ -360,22 +363,6 @@ def _ensure_mace_foundation_checkpoint(tag: str) -> str:
     return target
 
 
-def _resolve_device(device: str) -> str:
-    """Resolve ``"auto"`` to ``"cuda"`` if a CUDA device is present, else ``"cpu"``.
-
-    A passed-through ``"cuda"`` or ``"cpu"`` is returned unchanged.
-    """
-    if device != "auto":
-        return device
-    try:
-        import torch
-        if torch.cuda.is_available():
-            return "cuda"
-    except ImportError:
-        pass
-    return "cpu"
-
-
 def build_calculator(mlip: str, uma_task: str = "omat",
                      device: str = "auto", mace_head: str = "omat_pbe"):
     """Build and return an ASE calculator for the given MLIP choice.
@@ -464,3 +451,37 @@ def setup_calculator(atoms, mlip: str, uma_task: str = "omat",
     atoms.calc = build_calculator(mlip, uma_task, device=device,
                                   mace_head=mace_head)
     return atoms
+
+
+# ---------------------------------------------------------------------------
+# Parameter provenance (for the run record)
+# ---------------------------------------------------------------------------
+
+#: Click's provenance vocabulary -> the record's. DEFAULT_MAP means a config
+#: file supplied the value; we report it as "user" because a human wrote it.
+_SOURCE_LABELS = {
+    ParameterSource.COMMANDLINE: "user",
+    ParameterSource.ENVIRONMENT: "env",
+    ParameterSource.PROMPT: "prompt",
+    ParameterSource.DEFAULT: "default",
+    ParameterSource.DEFAULT_MAP: "user",
+}
+
+
+def param_sources_from_ctx(ctx) -> dict:
+    """Map each CLI parameter name to where its value came from.
+
+    Returns an empty dict when no context is available, which the record
+    module then reports as ``unspecified`` rather than guessing.
+    """
+    if ctx is None:
+        return {}
+    sources = {}
+    for name in getattr(ctx, "params", {}):
+        try:
+            src = ctx.get_parameter_source(name)
+        except Exception:  # noqa: BLE001 -- provenance is best-effort
+            continue
+        if src is not None:
+            sources[name] = _SOURCE_LABELS.get(src, "unspecified")
+    return sources

@@ -134,3 +134,52 @@ class TestParseRelaxAtoms:
     def test_negative_index_raises(self):
         with pytest.raises(typer.Exit):
             parse_relax_atoms("-1,0,1", num_atoms=10)
+
+
+class TestParamSourcesFromCtx:
+    """Click records where each parameter value came from; we relabel it."""
+
+    def test_maps_click_sources_to_record_vocabulary(self):
+        import typer
+        from typer.testing import CliRunner
+
+        from mliprun.cli.utils import param_sources_from_ctx
+
+        seen = {}
+        app = typer.Typer()
+
+        @app.command()
+        def go(ctx: typer.Context,
+               fmax: float = typer.Option(0.05),
+               max_steps: int = typer.Option(200)):
+            seen.update(param_sources_from_ctx(ctx))
+
+        result = CliRunner().invoke(app, ["--fmax", "0.02"])
+        assert result.exit_code == 0, result.output
+        assert seen["fmax"] == "user"
+        assert seen["max_steps"] == "default"
+
+    def test_returns_empty_dict_for_none(self):
+        from mliprun.cli.utils import param_sources_from_ctx
+
+        assert param_sources_from_ctx(None) == {}
+
+
+class TestResolveDeviceRelocation:
+    def test_explicit_device_passes_through_from_core(self):
+        from mliprun.core.utils import resolve_device
+
+        assert resolve_device("cpu") == "cpu"
+        assert resolve_device("cuda") == "cuda"
+
+    def test_auto_resolves_to_a_concrete_device(self):
+        from mliprun.core.utils import resolve_device
+
+        assert resolve_device("auto") in {"cuda", "cpu"}
+
+    def test_cli_alias_still_points_at_the_same_function(self):
+        """cli/utils.py:408 still calls _resolve_device; keep it working."""
+        from mliprun.cli.utils import _resolve_device
+        from mliprun.core.utils import resolve_device
+
+        assert _resolve_device is resolve_device
