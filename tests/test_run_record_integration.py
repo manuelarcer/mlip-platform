@@ -391,3 +391,113 @@ class TestNebRunWiring:
         data = _record(tmp_path)
         assert data["status"] == "failed"
         assert data["stages"][0]["status"] == "failed"
+
+
+class TestAutonebRecord:
+    def test_autoneb_records_command_and_stage_kind(self, tmp_path):
+        """AutoNEB shares the barrier summary but is its own command."""
+        rec = RunRecord.begin(
+            tmp_path, command="autoneb", stage_kind="autoneb",
+            parameters={"n_max": 9, "climb": True},
+            inputs={"n_images": 5},
+            provenance={"mliprun_version": "test"},
+        )
+        from mliprun.core.neb import summarize_neb_path
+        rec.complete(status="converged", steps=250,
+                     results=summarize_neb_path([0.0, 0.6, 1.1, 0.2]))
+        data = _record(tmp_path)
+        assert data["command"] == "autoneb"
+        assert data["stages"][0]["kind"] == "autoneb"
+        assert data["stages"][0]["results"]["forward_barrier_eV"] == pytest.approx(1.1)
+        assert data["stages"][0]["results"]["ts_at_endpoint"] is False
+
+
+class TestAutonebRunWiring:
+    """Exercises the real run_autoneb code path with EMT calculators.
+
+    TestAutonebRecord above tests the command/stage_kind wiring against the
+    RunRecord API directly, without going through run_autoneb -- a bug in
+    the wiring itself (record never opened, wrong stage_kind, results never
+    populated from the actual converged path) would pass that test while
+    `autoneb run` silently wrote nothing useful. These tests close that gap.
+
+    n_max=3, n_simul=1 is the smallest AutoNEB configuration ASE accepts:
+    two fixed endpoints plus one free interior image, so a single tiny NEB
+    relaxation is all that runs. climb is left off here -- ASE's own
+    `assert climb_safe` inside AutoNEB.run() requires the highest-energy
+    image to land on the (only) interior image, which is not guaranteed for
+    these unrelaxed endpoints, and that assertion is orthogonal to what
+    this test is checking.
+    """
+
+    def _emt_neb(self, tmp_path, monkeypatch, **kwargs):
+        from mliprun.core.neb import CustomNEB
+
+        initial, final = _neb_pair()
+        neb = CustomNEB(
+            initial=initial, final=final, num_images=3,
+            mlip="test", output_dir=tmp_path, **kwargs,
+        )
+        monkeypatch.setattr(neb, "setup_calculator", lambda: EMT())
+        return neb
+
+    def test_autoneb_run_writes_a_record_with_barrier_results(self, tmp_path, monkeypatch):
+        neb = self._emt_neb(tmp_path, monkeypatch)
+        neb.run_autoneb(n_simul=1, n_max=3, maxsteps=5, climb=False)
+
+        data = _record(tmp_path)
+        assert data["command"] == "autoneb"
+        stage = data["stages"][0]
+        assert stage["kind"] == "autoneb"
+        assert stage["status"] == "converged"
+
+        results = stage["results"]
+        assert "forward_barrier_eV" in results
+        assert "reverse_barrier_eV" in results
+        assert "reaction_energy_eV" in results
+        assert results["n_images"] == 3
+        assert isinstance(results["ts_at_endpoint"], bool)
+
+    def test_run_context_tags_parameter_sources(self, tmp_path, monkeypatch):
+        neb = self._emt_neb(tmp_path, monkeypatch)
+        ctx = RunContext(command="autoneb", param_sources={"n_max": "user"})
+        neb.run_autoneb(n_simul=1, n_max=3, maxsteps=5, climb=False, run_context=ctx)
+
+        params = _record(tmp_path)["parameters"]
+        assert params["n_max"]["value"] == 3
+        assert params["n_max"]["source"] == "user"
+
+    def test_failed_autoneb_run_still_leaves_a_record(self, tmp_path, monkeypatch):
+        """An exception inside AutoNEB's own run() must not swallow the
+        evidence -- but a failure during endpoint setup (before AutoNEB.run()
+        is even called) is deliberately NOT wrapped, per the design ("only
+        the AutoNEB run in try/except"), so the fake calculator here must
+        only start failing once AutoNEB's interior images request one."""
+        from mliprun.core.neb import CustomNEB
+
+        initial, final = _neb_pair()
+        neb = CustomNEB(
+            initial=initial, final=final, num_images=3,
+            mlip="test", output_dir=tmp_path,
+        )
+
+        class Exploding(EMT):
+            def calculate(self, *args, **kwargs):
+                raise RuntimeError("calculator exploded")
+
+        calls = {"n": 0}
+
+        def flaky_calculator():
+            calls["n"] += 1
+            # The first two calls set up the initial/final endpoint
+            # energies before AutoNEB.run() starts; only calculators
+            # handed out afterwards (to AutoNEB's interior images) fail.
+            return EMT() if calls["n"] <= 2 else Exploding()
+
+        monkeypatch.setattr(neb, "setup_calculator", flaky_calculator)
+        with pytest.raises(RuntimeError):
+            neb.run_autoneb(n_simul=1, n_max=3, maxsteps=5, climb=False)
+
+        data = _record(tmp_path)
+        assert data["status"] == "failed"
+        assert data["stages"][0]["status"] == "failed"

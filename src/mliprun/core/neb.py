@@ -763,6 +763,7 @@ class CustomNEB:
         interpolate_method: str = "idpp",
         maxsteps: int = 10000,
         prefix: str = "autoneb",
+        run_context: Optional[RunContext] = None,
     ) -> None:
         """Run AutoNEB calculation.
 
@@ -786,9 +787,33 @@ class CustomNEB:
             Maximum steps per relaxation.
         prefix : str
             Prefix for output files.
+        run_context : RunContext, optional
+            Declares the command and where each parameter value came from.
+            When omitted the record still gets written, with every parameter
+            tagged ``unspecified``.
         """
         if self.relax_atoms is not None:
             logger.warning("AutoNEB with relax_atoms (highly-constrained mode) may not work as expected.")
+
+        # Opened before the chdir below: self.output_dir may be a relative
+        # path, and RunRecord.begin() resolves it against the current
+        # working directory at the moment it is called.
+        record = RunRecord.begin(
+            self.output_dir,
+            command="autoneb",
+            stage_kind="autoneb",
+            parameters={"n_max": n_max, "climb": climb, "fmax": self.fmax,
+                        "k": k, "maxsteps": maxsteps,
+                        "uma_task": self.uma_task},
+            inputs={"n_images": len(self.images),
+                    "n_atoms": len(self.images[0]) if self.images else 0},
+            provenance=collect_provenance(
+                mlip_model=self.mlip,
+                device_requested=self.device,
+                device_resolved=resolve_device(self.device),
+            ),
+            run_context=run_context,
+        )
 
         original_cwd = os.getcwd()
         os.chdir(self.output_dir)
@@ -831,11 +856,29 @@ class CustomNEB:
                 space_energy_ratio=space_energy_ratio,
                 interpolate_method=interpolate_method,
             )
-            autoneb.run()
+            try:
+                final_images = autoneb.run()
+            except Exception as exc:
+                # Restore cwd first: record.path was built from
+                # self.output_dir while cwd was still original_cwd (see the
+                # comment above), so it must be written back from the same
+                # cwd or a relative output_dir would resolve to the wrong
+                # place.
+                os.chdir(original_cwd)
+                record.complete(status="failed", results={"error": str(exc)})
+                raise
 
             logger.info("AutoNEB calculation complete")
         finally:
             os.chdir(original_cwd)
+
+        # AutoNEB.run() returns the converged path (self.all_images, each
+        # image carrying a SinglePointCalculator snapshot of its final
+        # energy) -- NOT self.images, which is CustomNEB's own placeholder
+        # list built from a dummy num_images in __init__ and never touched
+        # by AutoNEB.
+        final_energies = [img.get_potential_energy() for img in final_images]
+        record.complete(status="converged", results=summarize_neb_path(final_energies))
 
     # ------------------------------------------------------------------
     # Post-processing
