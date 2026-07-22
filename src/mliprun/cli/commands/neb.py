@@ -10,7 +10,8 @@ from ase.optimize import FIRE, MDMin, BFGS, LBFGS
 
 from mliprun.core.neb import CustomNEB
 from mliprun.core.params_io import write_parameters_file, write_endpoint_results
-from mliprun.cli.utils import MACE_HEAD_HELP, MLIP_HELP, PLOT_HELP, UMA_TASK_HELP, parse_relax_atoms, resolve_mlip
+from mliprun.core.run_record import RunContext
+from mliprun.cli.utils import MACE_HEAD_HELP, MLIP_HELP, PLOT_HELP, UMA_TASK_HELP, param_sources_from_ctx, parse_relax_atoms, resolve_mlip
 
 logger = logging.getLogger(__name__)
 
@@ -320,6 +321,7 @@ def _handle_new_neb(output_dir, initial, final, *, num_images, interp_fmax,
 
 @app.command()
 def run(
+    ctx: typer.Context,
     restart: bool = typer.Option(False, "--restart", help="Restart from previous NEB calculation"),
     initial: Path = typer.Option(None, help="Initial structure file (.vasp)"),
     final: Path = typer.Option(None, help="Final structure file (.vasp)"),
@@ -387,7 +389,14 @@ def run(
 
     typer.echo(f"Running NEB optimization (optimizer={neb_optimizer_name.upper()}, "
                f"climb={climb_val}, max_steps={max_steps})...")
-    neb_obj.run_neb(optimizer=neb_opt, climb=climb_val, max_steps=max_steps, plot=plot)
+    run_context = RunContext(
+        command="neb",
+        mode="one-off",
+        param_sources=param_sources_from_ctx(ctx),
+    )
+    neb_obj.run_neb(optimizer=neb_opt, climb=climb_val, max_steps=max_steps,
+                    k=params.get("k"), plot=plot, run_context=run_context,
+                    append=restart)
 
     typer.echo("Processing results...")
     df = neb_obj.process_results()

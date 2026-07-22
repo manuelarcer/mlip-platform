@@ -20,9 +20,39 @@ from ase.mep.neb import idpp_interpolate
 from ase.optimize import FIRE, MDMin
 from scipy.interpolate import make_interp_spline
 
-from mliprun.core.utils import calc_fmax
+from mliprun.core.run_record import RunContext, RunRecord, collect_provenance
+from mliprun.core.utils import calc_fmax, resolve_device
 
 logger = logging.getLogger(__name__)
+
+
+def summarize_neb_path(energies) -> dict:
+    """Barrier metrics for one converged NEB path.
+
+    Both directions are reported: the existing convergence log records only
+    ``max(E) - E[0]``, which is half the answer for any reaction you might
+    want to run backwards.
+
+    ``ts_at_endpoint`` flags a maximum sitting on the first or last image,
+    which means no saddle was bracketed -- the path is monotonic and the
+    "barrier" is not a transition state.
+    """
+    energies = [float(e) for e in energies]
+    n = len(energies)
+    if n == 0:
+        return {"n_images": 0, "forward_barrier_eV": 0.0,
+                "reverse_barrier_eV": 0.0, "reaction_energy_eV": 0.0,
+                "ts_image_index": None, "ts_at_endpoint": False}
+    peak = max(energies)
+    idx = energies.index(peak)
+    return {
+        "n_images": n,
+        "forward_barrier_eV": peak - energies[0],
+        "reverse_barrier_eV": peak - energies[-1],
+        "reaction_energy_eV": energies[-1] - energies[0],
+        "ts_image_index": idx,
+        "ts_at_endpoint": n > 1 and idx in (0, n - 1),
+    }
 
 
 class CustomNEB:
@@ -578,7 +608,10 @@ class CustomNEB:
         full_traj: str = "A2B_full.traj",
         climb: bool = False,
         max_steps: int = 600,
+        k: Optional[float] = None,
         plot: bool = False,
+        run_context: Optional[RunContext] = None,
+        append: bool = False,
     ) -> list:
         """Run NEB optimization.
 
@@ -594,16 +627,56 @@ class CustomNEB:
             Enable climbing image NEB.
         max_steps : int
             Maximum number of optimization steps.
+        k : float, optional
+            NEB spring constant, forwarded to ``ase.mep.NEB``. Left ``None``
+            uses ASE's own default (0.1 eV/Ang^2, same as this project's CLI
+            default), so omitting it reproduces the prior behaviour exactly.
         plot : bool
             If True, write neb_convergence.png. Defaults to False -- plotting is
             opt-in; neb_convergence.csv is always written.
+        run_context : RunContext, optional
+            Declares the command and where each parameter value came from.
+            When omitted the record still gets written, with every parameter
+            tagged ``unspecified``.
+        append : bool
+            If True, append a ``neb-restart`` stage to an existing
+            ``mliprun_run.json`` in ``output_dir`` instead of starting a new
+            record -- a plain-then-CI-NEB workflow is two invocations in the
+            same directory, and each is one stage.
 
         Returns
         -------
         list[ase.Atoms]
             Optimized NEB images.
         """
-        neb = NEB(self.images, climb=climb, method="improvedtangent")
+        record = RunRecord.begin(
+            self.output_dir,
+            command="neb",
+            stage_kind="neb-restart" if append else "neb",
+            parameters={"fmax": self.fmax, "num_images": self.num_images,
+                        "uma_task": self.uma_task,
+                        "interp_fmax": self.interp_fmax,
+                        "interp_steps": self.interp_steps},
+            inputs={"n_images": len(self.images),
+                    "n_atoms": len(self.images[0]) if self.images else 0},
+            provenance=collect_provenance(
+                mlip_model=self.mlip,
+                device_requested=self.device,
+                device_resolved=resolve_device(self.device),
+            ),
+            run_context=run_context,
+            # k, climb, max_steps and the optimizer are arguments of this
+            # call, not instance state, so they belong to the stage: a
+            # CI-NEB restart changes them without changing the directory.
+            stage_parameters={"climb": climb, "max_steps": max_steps, "k": k,
+                              "optimizer": getattr(optimizer, "__name__", str(optimizer))},
+            append=append,
+        )
+
+        neb_kwargs = {"climb": climb, "method": "improvedtangent"}
+        if k is not None:
+            neb_kwargs["k"] = k
+        neb = NEB(self.images, **neb_kwargs)
         for image in self.images:
             image.calc = self.setup_calculator()
 
@@ -637,7 +710,12 @@ class CustomNEB:
 
             opt = optimizer(neb, logfile=log_file)
             opt.attach(log_iteration, interval=1)
-            opt.run(fmax=self.fmax, steps=max_steps)
+            try:
+                converged = opt.run(fmax=self.fmax, steps=max_steps)
+            except Exception as exc:
+                traj_writer.close()
+                record.complete(status="failed", results={"error": str(exc)})
+                raise
 
         traj_writer.close()
 
@@ -656,6 +734,17 @@ class CustomNEB:
         with Trajectory(str(traj_path), "w") as traj:
             for img in self.images:
                 traj.write(img)
+
+        final_energies = [img.get_potential_energy() for img in self.images]
+        results = summarize_neb_path(final_energies)
+        results["final_fmax_eV_per_A"] = (
+            float(log_data["fmax(eV/A)"][-1]) if log_data["fmax(eV/A)"] else None
+        )
+        record.complete(
+            status="converged" if converged else "not_converged",
+            steps=int(opt.nsteps),
+            results=results,
+        )
 
         return self.images
 

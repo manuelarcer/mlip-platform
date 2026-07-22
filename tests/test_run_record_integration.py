@@ -2,6 +2,7 @@
 import csv
 import json
 
+import numpy as np
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT
@@ -219,3 +220,174 @@ class TestMdRecord:
         results = _record(tmp_path)["stages"][0]["results"]
         assert "mean_pressure_GPa" in results
         assert "mean_volume_A3" in results
+
+
+from mliprun.core.run_record import RunRecord
+
+
+class TestNebBarrierMetrics:
+    """The barrier arithmetic, isolated from the cost of a real NEB."""
+
+    def test_forward_and_reverse_barriers(self):
+        from mliprun.core.neb import summarize_neb_path
+
+        # Energies along a path with a clear interior maximum.
+        s = summarize_neb_path([0.0, 0.4, 0.9, 0.3, -0.35])
+        assert s["forward_barrier_eV"] == pytest.approx(0.9)
+        assert s["reverse_barrier_eV"] == pytest.approx(1.25)
+        assert s["reaction_energy_eV"] == pytest.approx(-0.35)
+        assert s["ts_image_index"] == 2
+        assert s["n_images"] == 5
+        assert s["ts_at_endpoint"] is False
+
+    def test_maximum_at_final_image_is_flagged(self):
+        from mliprun.core.neb import summarize_neb_path
+
+        s = summarize_neb_path([0.0, 0.2, 0.5, 0.8])
+        assert s["ts_at_endpoint"] is True
+        assert s["ts_image_index"] == 3
+
+    def test_maximum_at_first_image_is_flagged(self):
+        from mliprun.core.neb import summarize_neb_path
+
+        s = summarize_neb_path([0.5, 0.2, 0.0])
+        assert s["ts_at_endpoint"] is True
+
+    def test_single_image_degenerates_safely(self):
+        from mliprun.core.neb import summarize_neb_path
+
+        s = summarize_neb_path([1.0])
+        assert s["n_images"] == 1
+        assert s["forward_barrier_eV"] == 0.0
+
+
+class TestNebStageAppend:
+    def test_restart_appends_second_stage(self, tmp_path):
+        """A plain NEB then a CI-NEB in the same directory is two stages."""
+        rec = RunRecord.begin(
+            tmp_path, command="neb", stage_kind="neb",
+            parameters={"climb": False}, inputs={"n_images": 5},
+            provenance={"mliprun_version": "test"},
+            stage_parameters={"climb": False},
+        )
+        rec.complete(status="converged", steps=100,
+                     results={"forward_barrier_eV": 0.85})
+
+        rec2 = RunRecord.begin(
+            tmp_path, command="neb", stage_kind="neb-restart",
+            parameters={"climb": True}, inputs={"n_images": 5},
+            provenance={"mliprun_version": "test"},
+            stage_parameters={"climb": True}, append=True,
+        )
+        rec2.complete(status="converged", steps=40,
+                      results={"forward_barrier_eV": 0.91})
+
+        stages = _record(tmp_path)["stages"]
+        assert [s["kind"] for s in stages] == ["neb", "neb-restart"]
+        assert stages[0]["results"]["forward_barrier_eV"] == 0.85
+        assert stages[1]["parameters"]["climb"]["value"] is True
+
+
+def _neb_pair():
+    """Cu initial/final pair for NEB wiring tests.
+
+    Mirrors tests/test_core_neb.py::_make_neb_pair -- kept local rather than
+    imported so this file's tests stand alone.
+    """
+    initial = bulk("Cu", "fcc", a=3.6) * (2, 2, 2)
+    final = initial.copy()
+    pos = final.get_positions()
+    pos[0] += np.array([0.3, 0.3, 0.0])
+    final.set_positions(pos)
+    return initial, final
+
+
+class TestNebRunWiring:
+    """Exercises the real run_neb code path with EMT calculators.
+
+    TestNebBarrierMetrics and TestNebStageAppend above test the arithmetic
+    and the RunRecord API in isolation -- neither one calls the real
+    run_neb, so a bug in the wiring itself (record never opened, wrong
+    stage_kind, append not honored, results never populated) would pass
+    every test above while `neb run` silently wrote nothing useful. These
+    tests close that gap.
+    """
+
+    def _emt_neb(self, tmp_path, monkeypatch, **kwargs):
+        from mliprun.core.neb import CustomNEB
+
+        initial, final = _neb_pair()
+        neb = CustomNEB(
+            initial=initial, final=final, num_images=3,
+            mlip="test", output_dir=tmp_path, **kwargs,
+        )
+        # run_neb builds a calculator per image via self.setup_calculator();
+        # swap in EMT so the run works without a real MLIP installed.
+        monkeypatch.setattr(neb, "setup_calculator", lambda: EMT())
+        return neb
+
+    def test_fresh_run_writes_a_neb_stage_with_barrier_results(self, tmp_path, monkeypatch):
+        neb = self._emt_neb(tmp_path, monkeypatch)
+        neb.run_neb(max_steps=3)
+
+        data = _record(tmp_path)
+        assert data["command"] == "neb"
+        stage = data["stages"][0]
+        assert stage["kind"] == "neb"
+        assert stage["status"] in {"converged", "not_converged"}
+        assert isinstance(stage["steps"], int)
+
+        results = stage["results"]
+        assert "forward_barrier_eV" in results
+        assert "reverse_barrier_eV" in results
+        assert "reaction_energy_eV" in results
+        assert results["n_images"] == 5  # 3 intermediate + 2 endpoints
+        assert isinstance(results["ts_at_endpoint"], bool)
+        assert results["final_fmax_eV_per_A"] is not None
+
+    def test_append_true_appends_a_neb_restart_stage(self, tmp_path, monkeypatch):
+        neb = self._emt_neb(tmp_path, monkeypatch)
+        neb.run_neb(max_steps=3)
+
+        # A second CustomNEB in the same directory, as load_from_restart
+        # would produce, with climb turned on -- the plain-then-CI-NEB
+        # workflow the design doc calls out.
+        neb2 = self._emt_neb(tmp_path, monkeypatch)
+        neb2.run_neb(max_steps=3, climb=True, append=True)
+
+        stages = _record(tmp_path)["stages"]
+        assert [s["kind"] for s in stages] == ["neb", "neb-restart"]
+        assert stages[1]["parameters"]["climb"]["value"] is True
+        assert "forward_barrier_eV" in stages[0]["results"]
+        assert "forward_barrier_eV" in stages[1]["results"]
+
+    def test_run_context_tags_parameter_sources(self, tmp_path, monkeypatch):
+        neb = self._emt_neb(tmp_path, monkeypatch)
+        ctx = RunContext(command="neb", param_sources={"fmax": "user"})
+        neb.run_neb(max_steps=3, run_context=ctx)
+
+        params = _record(tmp_path)["parameters"]
+        assert params["fmax"]["value"] == pytest.approx(neb.fmax)
+        assert params["fmax"]["source"] == "user"
+
+    def test_failed_neb_run_still_leaves_a_record(self, tmp_path, monkeypatch):
+        """An exception mid-optimization must not swallow the evidence."""
+        from mliprun.core.neb import CustomNEB
+
+        initial, final = _neb_pair()
+        neb = CustomNEB(
+            initial=initial, final=final, num_images=3,
+            mlip="test", output_dir=tmp_path,
+        )
+
+        class Exploding(EMT):
+            def calculate(self, *args, **kwargs):
+                raise RuntimeError("calculator exploded")
+
+        monkeypatch.setattr(neb, "setup_calculator", lambda: Exploding())
+        with pytest.raises(RuntimeError):
+            neb.run_neb(max_steps=3)
+
+        data = _record(tmp_path)
+        assert data["status"] == "failed"
+        assert data["stages"][0]["status"] == "failed"
