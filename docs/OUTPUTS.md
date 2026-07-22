@@ -185,7 +185,7 @@ layer — so a script that calls `run_optimization` directly gets one too.
 | `status` | Status of the **latest** stage: `running`, `converged`, `not_converged` or `failed`. A record left saying `running` means the job died without reporting back. |
 | `run.mode` | `one-off` or `batch`. |
 | `run.batch` | `null` for one-off runs; otherwise `batch_id`, `driver`, `argv`, `root`, `config_file`. Every run of one batch shares a `batch_id`. |
-| `inputs` | Structure filename and absolute path, atom count, formula. |
+| `inputs` | For `optimize` and `md`: structure filename and absolute path, atom count, formula. For `neb` and `autoneb`: `n_images` and `n_atoms` (there is no single input structure). |
 | `parameters` | Every resolved parameter as `{"value": ..., "source": ...}`. |
 | `provenance` | Versions (mliprun, ASE, the MLIP package), model, requested vs resolved device, Python, hostname, timestamps, wall time. Always describes stage 0's environment — see below. |
 | `stages` | One entry per invocation in this directory. A NEB restart or MD resume **appends**. |
