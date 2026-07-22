@@ -653,7 +653,7 @@ class CustomNEB:
             self.output_dir,
             command="neb",
             stage_kind="neb-restart" if append else "neb",
-            parameters={"fmax": self.fmax, "num_images": self.num_images,
+            parameters={"num_images": self.num_images,
                         "uma_task": self.uma_task,
                         "interp_fmax": self.interp_fmax,
                         "interp_steps": self.interp_steps},
@@ -665,11 +665,16 @@ class CustomNEB:
                 device_resolved=resolve_device(self.device),
             ),
             run_context=run_context,
-            # k, climb, max_steps and the optimizer are arguments of this
-            # call, not instance state, so they belong to the stage: a
-            # CI-NEB restart changes them without changing the directory.
+            # k, climb, max_steps, the optimizer, and fmax are arguments of
+            # this call (fmax via self.fmax), not fixed properties of the
+            # directory, so they belong to the stage: a CI-NEB restart
+            # changes them without changing the directory. fmax in
+            # particular must be per-stage -- RunRecord.begin never rewrites
+            # top-level `parameters` on append, so a restart at a different
+            # fmax would otherwise leave the new value unrecorded.
             stage_parameters={"climb": climb, "max_steps": max_steps, "k": k,
-                              "optimizer": getattr(optimizer, "__name__", str(optimizer))},
+                              "optimizer": getattr(optimizer, "__name__", str(optimizer)),
+                              "fmax": self.fmax},
             append=append,
         )
 

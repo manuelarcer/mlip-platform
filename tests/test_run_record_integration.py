@@ -361,14 +361,35 @@ class TestNebRunWiring:
         assert "forward_barrier_eV" in stages[0]["results"]
         assert "forward_barrier_eV" in stages[1]["results"]
 
+    def test_restart_records_the_new_fmax_per_stage(self, tmp_path, monkeypatch):
+        """A restart at a different fmax must record that stage's own value.
+
+        Confirmed defect: fmax lived only in top-level `parameters`, which
+        `RunRecord.begin` never rewrites on append -- so stage 1 had no
+        `fmax` key at all, and a reader would (wrongly) read the first run's
+        fmax as governing the restart too.
+        """
+        neb = self._emt_neb(tmp_path, monkeypatch, fmax=0.1)
+        neb.run_neb(max_steps=3)
+
+        neb2 = self._emt_neb(tmp_path, monkeypatch, fmax=0.03)
+        neb2.run_neb(max_steps=3, climb=True, append=True)
+
+        stages = _record(tmp_path)["stages"]
+        assert stages[0]["parameters"]["fmax"]["value"] == pytest.approx(0.1)
+        assert stages[1]["parameters"]["fmax"]["value"] == pytest.approx(0.03)
+
     def test_run_context_tags_parameter_sources(self, tmp_path, monkeypatch):
         neb = self._emt_neb(tmp_path, monkeypatch)
         ctx = RunContext(command="neb", param_sources={"fmax": "user"})
         neb.run_neb(max_steps=3, run_context=ctx)
 
-        params = _record(tmp_path)["parameters"]
-        assert params["fmax"]["value"] == pytest.approx(neb.fmax)
-        assert params["fmax"]["source"] == "user"
+        # fmax lives in the stage's parameters (see
+        # test_restart_records_the_new_fmax_per_stage above), not the
+        # top-level ones -- it is stage-scoped, not directory-fixed.
+        stage_params = _record(tmp_path)["stages"][0]["parameters"]
+        assert stage_params["fmax"]["value"] == pytest.approx(neb.fmax)
+        assert stage_params["fmax"]["source"] == "user"
 
     def test_failed_neb_run_still_leaves_a_record(self, tmp_path, monkeypatch):
         """An exception mid-optimization must not swallow the evidence."""
