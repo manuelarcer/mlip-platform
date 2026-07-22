@@ -16,8 +16,11 @@ from mliprun.cli.commands.optimize import app as optimize_app
 runner = CliRunner()
 
 
-def _cu(a=3.7):
-    atoms = bulk("Cu", "fcc", a=a)
+def _cu(a=3.7, cubic=False):
+    # cubic=True gives a diagonal (triangular) cell -- required by ase.md.npt.NPT
+    # (the default "npt" barostat), which raises NotImplementedError on the
+    # primitive fcc cell's off-diagonal Cell matrix.
+    atoms = bulk("Cu", "fcc", a=a, cubic=cubic)
     atoms.calc = EMT()
     return atoms
 
@@ -162,3 +165,57 @@ class TestOptimizeCliRecord:
             "--fmax", "0.5", "--max-steps", "5",
         ])
         assert "Geometry Optimization Parameters" in (tmp_path / "opt_params.txt").read_text()
+
+
+from mliprun.core.md import run_md
+
+
+class TestMdRecord:
+    def _run(self, tmp_path, **kwargs):
+        opts = dict(atoms=_cu(), ensemble="nve", steps=20, timestep=1.0,
+                    log_interval=2, traj_interval=10, output_dir=tmp_path,
+                    model_name="emt", plot=False)
+        opts.update(kwargs)
+        return run_md(**opts)
+
+    def test_records_raw_statistics(self, tmp_path):
+        self._run(tmp_path)
+        results = _record(tmp_path)["stages"][0]["results"]
+        assert results["mean_temperature_K"] >= 0.0
+        assert results["std_temperature_K"] >= 0.0
+        assert isinstance(results["mean_total_energy_eV"], float)
+        assert isinstance(results["mean_potential_energy_eV"], float)
+        assert isinstance(results["total_energy_drift_eV_per_atom_per_ps"], float)
+        assert len(results["decile_mean_total_energy_eV"]) == 10
+
+    def test_completes_even_without_plotting(self, tmp_path):
+        """run_md returns early when plot=False; the record must still close."""
+        self._run(tmp_path, plot=False)
+        assert _record(tmp_path)["status"] == "converged"
+        assert _record(tmp_path)["stages"][0]["walltime_s"] is not None
+
+    def test_resume_appends_a_stage(self, tmp_path):
+        self._run(tmp_path)
+        self._run(tmp_path, resume=True, steps=10)
+        stages = _record(tmp_path)["stages"]
+        assert len(stages) == 2
+        assert stages[0]["kind"] == "md"
+        assert stages[1]["kind"] == "md-resume"
+        assert stages[0]["results"]["mean_temperature_K"] >= 0.0
+
+    def test_resume_statistics_cover_only_new_rows(self, tmp_path):
+        """Stage 1 must describe the resumed segment, not the whole history."""
+        self._run(tmp_path, steps=20)
+        self._run(tmp_path, resume=True, steps=10)
+        stages = _record(tmp_path)["stages"]
+        assert stages[1]["results"]["n_samples"] < stages[0]["results"]["n_samples"]
+
+    def test_npt_records_pressure_and_volume(self, tmp_path):
+        # ase.md.npt.NPT (the default "npt" barostat) requires a triangular
+        # cell, so this test needs the cubic Cu cell rather than _cu()'s
+        # default primitive one -- see _cu()'s docstring comment.
+        self._run(tmp_path, atoms=_cu(cubic=True), ensemble="npt",
+                  temperature=300, pressure=0.0, steps=10)
+        results = _record(tmp_path)["stages"][0]["results"]
+        assert "mean_pressure_GPa" in results
+        assert "mean_volume_A3" in results

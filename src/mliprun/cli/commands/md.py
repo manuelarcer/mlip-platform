@@ -2,13 +2,16 @@ import typer
 from pathlib import Path
 from ase.io import read
 from mliprun.core.md import run_md
+from mliprun.core.run_record import RunContext
 from mliprun.cli.utils import (
     DEVICE_HELP,
     MACE_HEAD_HELP,
     MLIP_HELP,
     PLOT_HELP,
     UMA_TASK_HELP,
+    _resolve_device,
     detect_mlip,
+    param_sources_from_ctx,
     setup_calculator,
     validate_mlip,
 )
@@ -17,6 +20,7 @@ app = typer.Typer(help="Run molecular dynamics simulations.")
 
 @app.command()
 def run(
+    ctx: typer.Context,
     structure: Path = typer.Option(..., prompt=True, help="Structure file (.vasp)"),
     ensemble: str = typer.Option("nvt", help="Ensemble: 'nve', 'nvt', 'npt'"),
     steps: int = typer.Option(1000, help="Number of MD steps"),
@@ -198,6 +202,16 @@ def run(
         f.write(f"Output dir:        {output_dir.resolve()}\n")
 
     # Run MD
+    run_context = RunContext(
+        command="md",
+        mode="one-off",
+        param_sources=param_sources_from_ctx(ctx),
+    )
+    run_context.extra_inputs = {
+        "structure": structure.name,
+        "structure_abspath": str(structure.resolve()),
+    }
+
     run_md(
         atoms=atoms,
         ensemble=ensemble,
@@ -218,6 +232,9 @@ def run(
         resume=resume,
         csv_flush_every=csv_flush_every,
         plot=plot,
+        run_context=run_context,
+        device_requested=device,
+        device_resolved=_resolve_device(device),
     )
 
     # List output files
