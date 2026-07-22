@@ -27,9 +27,17 @@ classifiers = [
 # mutually incompatible pins and must be installed one-per-env via the recipes
 # in docs/install/. See ADR 0001.
 dependencies = [
-    # plain "typer" — the [all] extra is empty in modern typer (>=0.12 bundles
-    # rich and shellingham) and only produces a pip warning on fresh installs
-    "typer",
+    # Upper bound is deliberate. typer >=0.16 vendors its own copy of click
+    # (typer._click), so a command's ctx yields typer._click ParameterSource
+    # members rather than click's — which silently broke param_sources_from_ctx
+    # once CI resolved a newer typer than the one developed against (see the
+    # name-keyed _SOURCE_LABELS in cli/utils.py). The code handles that split,
+    # but the cap stops an UNTESTED future typer from arriving unnoticed: CI
+    # keeps validating the newest allowed version, and raising the ceiling is a
+    # deliberate act that re-runs the suite. 0.27 is the newest version CI has
+    # green-lit. The [all] extra is empty in modern typer (>=0.12 bundles rich
+    # and shellingham) and only produces a pip warning on fresh installs.
+    "typer>=0.20,<0.28",
     "ase",
     "pandas",
     "matplotlib",
