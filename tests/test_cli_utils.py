@@ -171,15 +171,19 @@ class TestParamSourcesFromCtx:
         run_record.py:251-252), and this function producing it directly would
         be a latent trap if a future Click version adds a 6th source.
         """
+        from types import SimpleNamespace
+
         from mliprun.cli.utils import param_sources_from_ctx
 
         class FakeCtx:
             """Duck-types the two attributes param_sources_from_ctx uses;
-            not a real click.Context, deliberately."""
+            not a real click.Context, deliberately. The source has a ``.name``
+            (like a real ParameterSource enum member) that is not in the
+            vocabulary, so it exercises the label-miss skip path."""
             params = {"x": 1}
 
             def get_parameter_source(self, name):
-                return "not-a-real-parameter-source"
+                return SimpleNamespace(name="NOT_A_REAL_SOURCE")
 
         result = param_sources_from_ctx(FakeCtx())
         assert "x" not in result
@@ -188,12 +192,14 @@ class TestParamSourcesFromCtx:
     def test_source_labels_cover_every_current_parameter_source_member(self):
         """Belt-and-suspenders: confirms the fallback in the previous test
         is exercising a genuinely out-of-vocabulary value, not one that
-        happens to already be missing from _SOURCE_LABELS today."""
+        happens to already be missing from _SOURCE_LABELS today. Keyed by
+        member NAME because _SOURCE_LABELS is name-keyed (typer vendors its
+        own click enum; matching by member object would miss)."""
         from click.core import ParameterSource
         from mliprun.cli.utils import _SOURCE_LABELS
 
         for member in ParameterSource:
-            assert member in _SOURCE_LABELS, f"{member} has no record-vocabulary label"
+            assert member.name in _SOURCE_LABELS, f"{member} has no record-vocabulary label"
 
     def test_maps_default_map_env_and_prompt_sources(self):
         """Drives all three untested mappings end-to-end through the public
@@ -228,13 +234,15 @@ class TestParamSourcesFromCtx:
 
     def test_source_labels_dict_values_directly(self):
         """Direct check of the mapping table itself, per the review's minimum
-        bar, in addition to the end-to-end test above."""
+        bar, in addition to the end-to-end test above. Keyed by member NAME
+        (the table is name-keyed so it works across click and typer's vendored
+        click)."""
         from click.core import ParameterSource
         from mliprun.cli.utils import _SOURCE_LABELS
 
-        assert _SOURCE_LABELS[ParameterSource.DEFAULT_MAP] == "user"
-        assert _SOURCE_LABELS[ParameterSource.ENVIRONMENT] == "env"
-        assert _SOURCE_LABELS[ParameterSource.PROMPT] == "prompt"
+        assert _SOURCE_LABELS[ParameterSource.DEFAULT_MAP.name] == "user"
+        assert _SOURCE_LABELS[ParameterSource.ENVIRONMENT.name] == "env"
+        assert _SOURCE_LABELS[ParameterSource.PROMPT.name] == "prompt"
 
 
 class TestResolveDeviceRelocation:

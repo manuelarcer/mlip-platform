@@ -4,7 +4,6 @@ from importlib.metadata import distribution, PackageNotFoundError
 from pathlib import Path
 
 import typer
-from click.core import ParameterSource
 
 from mliprun.core.utils import resolve_device as _resolve_device
 
@@ -457,14 +456,20 @@ def setup_calculator(atoms, mlip: str, uma_task: str = "omat",
 # Parameter provenance (for the run record)
 # ---------------------------------------------------------------------------
 
-#: Click's provenance vocabulary -> the record's. DEFAULT_MAP means a config
-#: file supplied the value; we report it as "user" because a human wrote it.
+#: Click's provenance vocabulary -> the record's, keyed by the ParameterSource
+#: enum member NAME (a plain string) rather than the member object. Typer >=0.16
+#: vendors its own copy of click (``typer._click``), so a command's ``ctx`` yields
+#: ``typer._click.core.ParameterSource`` members -- a DIFFERENT enum class than
+#: top-level ``click.core.ParameterSource``, which never compares or hashes equal
+#: to it. Matching on ``.name`` ("COMMANDLINE", "DEFAULT", ...) is identical across
+#: both and survives future click/typer splits. DEFAULT_MAP means a config file
+#: supplied the value; we report it as "user" because a human wrote it.
 _SOURCE_LABELS = {
-    ParameterSource.COMMANDLINE: "user",
-    ParameterSource.ENVIRONMENT: "env",
-    ParameterSource.PROMPT: "prompt",
-    ParameterSource.DEFAULT: "default",
-    ParameterSource.DEFAULT_MAP: "user",
+    "COMMANDLINE": "user",
+    "ENVIRONMENT": "env",
+    "PROMPT": "prompt",
+    "DEFAULT": "default",
+    "DEFAULT_MAP": "user",
 }
 
 
@@ -482,9 +487,12 @@ def param_sources_from_ctx(ctx) -> dict:
             src = ctx.get_parameter_source(name)
         except Exception:  # noqa: BLE001 -- provenance is best-effort
             continue
-        if src is None:
-            continue
-        label = _SOURCE_LABELS.get(src)
+        # Match on the enum member's NAME, not the member object: typer vendors
+        # its own click, so ctx yields typer._click ParameterSource members that
+        # do not hash-equal the top-level click enum. ``.name`` is identical
+        # across both; None guards a missing source or an unexpected return.
+        key = getattr(src, "name", None)
+        label = _SOURCE_LABELS.get(key)
         if label is None:
             continue
         sources[name] = label
