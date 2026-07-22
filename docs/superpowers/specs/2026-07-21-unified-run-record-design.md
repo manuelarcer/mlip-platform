@@ -185,6 +185,24 @@ Field notes:
   model name, never `auto`.
 - `schema_version` exists so a future field change is detectable by readers
   rather than silently misparsed.
+- Top-level `provenance.walltime_s` is the **sum of every stage's**
+  `walltime_s` — the compute actually spent — not the wall-clock span between
+  `started_at` and `finished_at`. A NEB restarted a week after stage 0 reports
+  two hours of walltime, not a week. `started_at` stays at the run's origin
+  (stage 0); `finished_at` is the latest stage's completion.
+
+### Per-stage provenance
+
+Top-level `provenance` always describes the run's **origin** — the environment
+of stage 0 — and is never rewritten. When an appended stage runs in a different
+environment (a restart moved to another cluster, or after a version bump), that
+stage carries a `stage_provenance` object holding **only** the fields that
+differ from top-level, drawn from `mliprun_version`, `hostname`,
+`device_resolved` and `mlip_model`. When nothing differs the key is omitted
+entirely, and stage 0 never carries it. This keeps a cross-machine restart
+honest — the record shows stage 0 on `aspire2a` and stage 1 on `cos-cluster`
+rather than silently attributing both to the origin — without duplicating the
+full provenance block on every stage.
 
 ### Stages
 
@@ -217,6 +235,7 @@ Top-level `parameters` holds what is fixed for the directory; per-stage
   {"index": 1, "kind": "neb-restart", "status": "converged",
    "parameters": {"climb": {"value": true, "source": "user"},
                   "fmax":  {"value": 0.03, "source": "user"}},
+   "stage_provenance": {"hostname": "cos-cluster"},
    "steps": 61, "walltime_s": 512.7,
    "results": {"forward_barrier_eV": 0.911, "reverse_barrier_eV": 1.262,
                "reaction_energy_eV": -0.351, "ts_image_index": 4,
