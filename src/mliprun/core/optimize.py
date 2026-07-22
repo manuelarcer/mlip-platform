@@ -10,6 +10,7 @@ from ase.io.trajectory import Trajectory
 from ase.optimize import BFGS, FIRE, LBFGS, BFGSLineSearch, GPMin, MDMin
 
 from mliprun.core.utils import calc_fmax
+from mliprun.core.run_record import RunContext, RunRecord, collect_provenance
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,9 @@ def run_optimization(
     verbose: bool = True,
     relax_cell: bool = False,
     plot: bool = False,
+    run_context: Optional[RunContext] = None,
+    device_requested: str = "auto",
+    device_resolved: str = "auto",
 ) -> bool:
     """Run geometry optimization on an ASE Atoms object.
 
@@ -85,6 +89,14 @@ def run_optimization(
         relaxations (e.g. frozen-surface site scans), so plotting is opt-in.
         The ``*_convergence.csv`` is always written, so the data is retained
         either way and can be plotted later.
+    run_context : RunContext, optional
+        Declares the command, batch identity, and where each parameter value
+        came from. When omitted the record still gets written, with every
+        parameter tagged ``unspecified``.
+    device_requested : str
+        The device as asked for (e.g. ``'auto'``), recorded for provenance.
+    device_resolved : str
+        The device actually used (e.g. ``'cuda'``).
 
     Returns
     -------
@@ -119,6 +131,32 @@ def run_optimization(
 
     OptimizerClass = OPTIMIZER_MAP[optimizer_name]
 
+    record = RunRecord.begin(
+        output_path,
+        command="optimize",
+        stage_kind="optimize",
+        parameters={
+            "optimizer": optimizer_name,
+            "fmax": fmax,
+            "max_steps": max_steps,
+            "relax_cell": relax_cell,
+            "trajectory": trajectory,
+            "logfile": logfile,
+            "plot": plot,
+            "verbose": verbose,
+        },
+        inputs={
+            "n_atoms": len(atoms),
+            "formula": atoms.get_chemical_formula(),
+        },
+        provenance=collect_provenance(
+            mlip_model=model_name,
+            device_requested=device_requested,
+            device_resolved=device_resolved,
+        ),
+        run_context=run_context,
+    )
+
     # When relax_cell, the optimizer sees the filtered object (atoms + cell
     # DOFs). Trajectory frames are still written from the underlying atoms.
     opt_target = _wrap_for_cell_relaxation(atoms) if relax_cell else atoms
@@ -137,23 +175,37 @@ def run_optimization(
         log_data["energy(eV)"].append(energy)
         log_data["fmax(eV/A)"].append(fmax_val)
 
-    if verbose:
-        opt = OptimizerClass(opt_target, trajectory=str(traj_file), logfile=str(log_file))
-        opt.attach(log_convergence, interval=1)
-        logger.info("Starting optimization with %s (fmax=%.4f, max_steps=%d, relax_cell=%s)",
-                    optimizer.upper(), fmax, max_steps, relax_cell)
-        converged = opt.run(fmax=fmax, steps=max_steps)
-    else:
-        with open(log_file, "w") as lf:
-            opt = OptimizerClass(opt_target, trajectory=str(traj_file), logfile=lf)
+    try:
+        if verbose:
+            opt = OptimizerClass(opt_target, trajectory=str(traj_file), logfile=str(log_file))
             opt.attach(log_convergence, interval=1)
+            logger.info("Starting optimization with %s (fmax=%.4f, max_steps=%d, relax_cell=%s)",
+                        optimizer.upper(), fmax, max_steps, relax_cell)
             converged = opt.run(fmax=fmax, steps=max_steps)
+        else:
+            with open(log_file, "w") as lf:
+                opt = OptimizerClass(opt_target, trajectory=str(traj_file), logfile=lf)
+                opt.attach(log_convergence, interval=1)
+                converged = opt.run(fmax=fmax, steps=max_steps)
 
-    final_energy = atoms.get_potential_energy()
-    final_fmax = calc_fmax(opt_target.get_forces())
+        final_energy = atoms.get_potential_energy()
+        final_fmax = calc_fmax(opt_target.get_forces())
+    except Exception as exc:
+        record.complete(status="failed", results={"error": str(exc)})
+        raise
 
     logger.info("Optimization complete (converged=%s, steps=%d, energy=%.6f eV, fmax=%.6f eV/Ang)",
                 converged, opt.nsteps, final_energy, final_fmax)
+
+    record.complete(
+        status="converged" if converged else "not_converged",
+        steps=int(opt.nsteps),
+        results={
+            "converged": bool(converged),
+            "final_energy_eV": float(final_energy),
+            "final_fmax_eV_per_A": float(final_fmax),
+        },
+    )
 
     write(str(final_structure), atoms, format="vasp")
     write(str(contcar_file), atoms, format="vasp")
