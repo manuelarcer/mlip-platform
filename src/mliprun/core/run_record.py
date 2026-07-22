@@ -19,7 +19,6 @@ import os
 import platform
 import secrets
 import socket
-import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -41,6 +40,16 @@ _MLIP_PACKAGES = (
     ("7net", "sevenn"),
     ("chgnet", "chgnet"),
 )
+
+#: The only values `_tag()` will write to a parameter's `source` field. Kept
+#: as a module constant so later code (e.g. CLI-side tagging) can reuse it
+#: instead of re-typing the set.
+VALID_PARAM_SOURCES = frozenset({"user", "default", "env", "prompt", "unspecified"})
+
+#: Provenance fields compared between the run's origin and an appended
+#: stage. Only these four are meaningful to call out as "what changed" --
+#: see I2 in .superpowers/sdd/task-1-fixes.md.
+_PROVENANCE_DIFF_FIELDS = ("mliprun_version", "hostname", "device_resolved", "mlip_model")
 
 
 def _now_iso() -> str:
@@ -102,13 +111,16 @@ def _atomic_write_json(path: Path, payload: dict) -> None:
 def _load_existing(path: Path) -> Optional[dict]:
     """Return the record at ``path``, or None if absent or unusable.
 
-    An unparseable record is moved aside rather than deleted: it may be the
-    only evidence of what a prior run did.
+    An unparseable record, or one that parses to valid JSON that is not an
+    object (e.g. a bare ``[]``), is moved aside rather than deleted: it may
+    be the only evidence of what a prior run did.
     """
     if not path.exists():
         return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("record did not parse to a JSON object")
     except (OSError, ValueError):
         backup = path.with_suffix(
             path.suffix + f".corrupt-{datetime.now().strftime('%Y%m%dT%H%M%S')}"
@@ -119,11 +131,18 @@ def _load_existing(path: Path) -> Optional[dict]:
         except OSError:
             logger.warning("Unparseable %s could not be backed up", path.name)
         return None
-    return data if isinstance(data, dict) else None
+    return data
 
 
-def _mlip_package(mlip_model: str) -> dict:
-    """Resolve a model tag to its installed distribution name and version."""
+def _mlip_package(mlip_model: Any) -> dict:
+    """Resolve a model tag to its installed distribution name and version.
+
+    ``mlip_model`` may be ``None`` or otherwise non-string (a caller that
+    could not determine the tag) -- that is not a package lookup failure,
+    just an unresolvable one.
+    """
+    if not isinstance(mlip_model, str):
+        return {"name": None, "version": None}
     name = None
     for prefix, dist in _MLIP_PACKAGES:
         if mlip_model.startswith(prefix):
@@ -137,13 +156,18 @@ def _mlip_package(mlip_model: str) -> dict:
         return {"name": name, "version": None}
 
 
-def collect_provenance(*, mlip_model: str, device_requested: str,
+def collect_provenance(*, mlip_model: Any, device_requested: str,
                         device_resolved: str) -> dict:
     """Gather environment and version facts for the record.
 
     ``device_requested`` and ``device_resolved`` are kept apart because
     ``auto`` is what was typed and ``cuda`` is what ran. ``started_at`` and
     ``finished_at`` are filled in by :class:`RunRecord`.
+
+    Every fallible call is individually guarded: a record with a few
+    ``None`` fields is far better than no record, and this function must
+    never raise -- ``socket.gethostname()`` genuinely fails on some
+    HPC/container setups.
     """
     try:
         mliprun_version = version("mliprun")
@@ -153,15 +177,27 @@ def collect_provenance(*, mlip_model: str, device_requested: str,
         from ase import __version__ as ase_version
     except Exception:  # noqa: BLE001 -- ASE absence must not break the record
         ase_version = None
+    try:
+        mlip_package = _mlip_package(mlip_model)
+    except Exception:  # noqa: BLE001 -- unresolvable tag must not break the record
+        mlip_package = {"name": None, "version": None}
+    try:
+        python_version = platform.python_version()
+    except Exception:  # noqa: BLE001
+        python_version = None
+    try:
+        hostname = socket.gethostname()
+    except Exception:  # noqa: BLE001 -- fails on some HPC/container setups
+        hostname = None
     return {
         "mliprun_version": mliprun_version,
         "ase_version": ase_version,
-        "mlip_package": _mlip_package(mlip_model),
+        "mlip_package": mlip_package,
         "mlip_model": mlip_model,
         "device_requested": device_requested,
         "device_resolved": device_resolved,
-        "python_version": platform.python_version(),
-        "hostname": socket.gethostname(),
+        "python_version": python_version,
+        "hostname": hostname,
         "started_at": None,
         "finished_at": None,
         "walltime_s": None,
@@ -210,8 +246,13 @@ class RunContext:
 
 def _tag(parameters: dict, sources: Optional[dict]) -> dict:
     sources = sources or {}
+
+    def _source(key: str) -> str:
+        tag = sources.get(key, "unspecified")
+        return tag if tag in VALID_PARAM_SOURCES else "unspecified"
+
     return {
-        str(k): {"value": _jsonable(v), "source": sources.get(k, "unspecified")}
+        str(k): {"value": _jsonable(v), "source": _source(k)}
         for k, v in parameters.items()
     }
 
@@ -238,8 +279,9 @@ class RunRecord:
         a no-op.
         """
         t0 = time.perf_counter()
-        path = Path(output_dir) / RECORD_FILENAME
+        path = None
         try:
+            path = Path(output_dir) / RECORD_FILENAME
             sources = run_context.param_sources if run_context else None
             existing = _load_existing(path) if append else None
             stages = list(existing.get("stages", [])) if existing else []
@@ -266,6 +308,19 @@ class RunRecord:
                 payload = existing
                 payload["stages"] = stages
                 payload["status"] = "running"
+                # I2: the run's origin provenance never changes on append;
+                # instead the stage records only what differs from it, so a
+                # reader can see what changed about the environment between
+                # stages without losing the original context.
+                top_prov = payload.get("provenance") or {}
+                prov_in = provenance or {}
+                stage_delta = {
+                    key: prov_in.get(key)
+                    for key in _PROVENANCE_DIFF_FIELDS
+                    if prov_in.get(key) != top_prov.get(key)
+                }
+                if stage_delta:
+                    stage["stage_provenance"] = stage_delta
             else:
                 prov = dict(provenance)
                 prov["started_at"] = _now_iso()
@@ -296,6 +351,11 @@ class RunRecord:
             return cls(path, payload, stage["index"], t0)
         except Exception as exc:  # noqa: BLE001 -- never kill the run
             logger.warning("Could not write %s: %s", RECORD_FILENAME, exc)
+            if path is None:
+                # The failure happened before `path` could even be built
+                # (e.g. `output_dir=None`). A dead handle's `complete()` is
+                # a no-op regardless, so any placeholder path is fine.
+                path = Path(".") / RECORD_FILENAME
             return cls(path, {}, -1, t0)
 
     def complete(self, *, status: str, steps: Optional[int] = None,
@@ -316,7 +376,18 @@ class RunRecord:
             self._payload["status"] = status
             prov = self._payload["provenance"]
             prov["finished_at"] = _now_iso()
-            prov["walltime_s"] = round(time.perf_counter() - self._t0, 3)
+            # I1 (human decision): top-level walltime_s is the SUM of every
+            # stage's walltime_s, not just the one that just completed --
+            # `started_at` stays at the run's origin (set once, in `begin`)
+            # and `finished_at` above already tracks the latest completion.
+            prov["walltime_s"] = round(
+                sum(
+                    s["walltime_s"]
+                    for s in self._payload["stages"]
+                    if s.get("walltime_s") is not None
+                ),
+                3,
+            )
 
             _atomic_write_json(self.path, self._payload)
         except Exception as exc:  # noqa: BLE001 -- never kill the run

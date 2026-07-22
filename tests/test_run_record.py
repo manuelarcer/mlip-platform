@@ -1,6 +1,7 @@
 """Unit tests for the canonical JSON run record."""
 import json
 import math
+import time
 from pathlib import Path
 
 import numpy as np
@@ -194,17 +195,23 @@ class TestRobustness:
     def test_no_partial_file_left_by_failed_serialization(self, tmp_path):
         rec = _begin(tmp_path)
         rec.complete(status="converged", results={})
-        before = (tmp_path / RECORD_FILENAME).read_text()
 
         class Boom:
             def __repr__(self):
                 raise RuntimeError("boom")
 
+        # begin()'s own phase-one write legitimately changes the file (new
+        # stage, status back to "running") -- that happens before the
+        # failing call below, so the byte-identity check must anchor to
+        # *this* state, not to the state before begin() ran.
         rec2 = _begin(tmp_path, append=True)
+        before = (tmp_path / RECORD_FILENAME).read_text()
         rec2.complete(status="converged", results={"bad": Boom()})
-        # Prior valid record is intact or validly replaced -- never truncated.
+        # A failed complete() (serialization raises before the file is ever
+        # touched) must leave the record exactly as it was -- byte-for-byte,
+        # never truncated, never partially overwritten.
         text = (tmp_path / RECORD_FILENAME).read_text()
-        json.loads(text)
+        assert text == before
         assert len(list(tmp_path.glob(f"{RECORD_FILENAME}.tmp*"))) == 0
 
 
@@ -237,3 +244,103 @@ class TestHelpers:
         prov = collect_provenance(mlip_model=model, device_requested="cpu",
                                   device_resolved="cpu")
         assert prov["mlip_package"]["name"] == expected
+
+
+class TestReviewFixes:
+    """Regression tests for the task-1 code review findings (C1, C2, I1, I2,
+    I3, M1). M2 (unused import) and M3 (test-only) have no dedicated test
+    here -- M3's fix is folded into
+    TestRobustness.test_no_partial_file_left_by_failed_serialization above.
+    """
+
+    def test_begin_with_invalid_output_dir_does_not_raise(self):
+        """C1: `Path(output_dir)` construction happens inside the try block,
+        so a bad `output_dir` yields a dead handle instead of an uncaught
+        TypeError."""
+        rec = RunRecord.begin(None, command="optimize", stage_kind="optimize",
+                              parameters={}, inputs={}, provenance={})
+        rec.complete(status="converged", results={})  # must be a silent no-op
+
+    def test_collect_provenance_tolerates_none_model(self):
+        """C2: every fallible call in collect_provenance is individually
+        guarded, including a non-string mlip_model reaching _mlip_package."""
+        prov = collect_provenance(mlip_model=None, device_requested="cpu",
+                                  device_resolved="cpu")
+        assert prov["mlip_package"] == {"name": None, "version": None}
+
+    def test_multistage_walltime_is_summed(self, tmp_path):
+        """I1 (human decision: SUM): top-level provenance.walltime_s is the
+        sum of every stage's walltime_s, not just the latest one."""
+        rec = _begin(tmp_path)
+        time.sleep(0.05)
+        rec.complete(status="converged", results={})
+
+        rec2 = _begin(tmp_path, stage_kind="neb-restart", append=True)
+        time.sleep(0.15)
+        rec2.complete(status="converged", results={})
+
+        data = _read(tmp_path)
+        stages = data["stages"]
+        # Measurably different durations, per the finding's test recipe.
+        assert stages[1]["walltime_s"] > stages[0]["walltime_s"]
+        expected = stages[0]["walltime_s"] + stages[1]["walltime_s"]
+        assert data["provenance"]["walltime_s"] == pytest.approx(expected, abs=1e-6)
+
+    def test_append_records_only_changed_provenance_fields(self, tmp_path):
+        """I2 (human decision): an appended stage's stage_provenance holds
+        only the fields that differ from the run's origin provenance; the
+        origin itself is never overwritten."""
+        rec = _begin(tmp_path, provenance={"mliprun_version": "0.4.0",
+                                           "hostname": "node-a",
+                                           "device_resolved": "cpu",
+                                           "mlip_model": "uma-s-1p2"})
+        rec.complete(status="converged", results={})
+
+        rec2 = _begin(tmp_path, stage_kind="neb-restart", append=True,
+                      provenance={"mliprun_version": "0.4.1",
+                                  "hostname": "node-b",
+                                  "device_resolved": "cpu",
+                                  "mlip_model": "uma-s-1p2"})
+        rec2.complete(status="converged", results={})
+
+        data = _read(tmp_path)
+        assert data["provenance"]["hostname"] == "node-a"
+        assert data["provenance"]["mliprun_version"] == "0.4.0"
+        assert data["stages"][1]["stage_provenance"] == {
+            "mliprun_version": "0.4.1",
+            "hostname": "node-b",
+        }
+        assert "stage_provenance" not in data["stages"][0]
+
+    def test_append_with_same_environment_writes_no_stage_provenance(self, tmp_path):
+        """I2: a same-environment append omits stage_provenance entirely --
+        never an empty dict."""
+        prov = {"mliprun_version": "0.4.0", "hostname": "node-a",
+                "device_resolved": "cpu", "mlip_model": "uma-s-1p2"}
+        rec = _begin(tmp_path, provenance=dict(prov))
+        rec.complete(status="converged", results={})
+
+        rec2 = _begin(tmp_path, stage_kind="neb-restart", append=True,
+                      provenance=dict(prov))
+        rec2.complete(status="converged", results={})
+
+        data = _read(tmp_path)
+        assert "stage_provenance" not in data["stages"][1]
+
+    def test_invalid_param_source_coerced_to_unspecified(self, tmp_path):
+        """I3: only the five documented source tags are accepted; anything
+        else is coerced to 'unspecified' rather than written verbatim."""
+        ctx = RunContext(command="x", param_sources={"fmax": "bogus"})
+        _begin(tmp_path, run_context=ctx)
+        assert _read(tmp_path)["parameters"]["fmax"]["source"] == "unspecified"
+
+    def test_non_dict_json_record_is_backed_up(self, tmp_path):
+        """M1: a record that parses to valid JSON but is not an object (e.g.
+        a bare `[]`) gets the same back-up-then-continue treatment as
+        unparseable JSON, instead of being silently discarded."""
+        (tmp_path / RECORD_FILENAME).write_text("[]")
+        rec = _begin(tmp_path, append=True)
+        rec.complete(status="converged", results={})
+        backups = list(tmp_path.glob(f"{RECORD_FILENAME}.corrupt-*"))
+        assert len(backups) == 1
+        assert backups[0].read_text() == "[]"
